@@ -1,0 +1,15 @@
+{
+  "name": "cv-platform",
+  "private": true,
+  "packageManager": "pnpm@9.0.0",
+  "scripts": {
+    "dev": "pnpm --filter web dev",
+    "build": "pnpm --filter web build",
+    "lint": "pnpm --filter web lint && pnpm --filter shared-types build",
+    "typecheck": "pnpm --filter web typecheck && pnpm --filter shared-types typecheck"
+  },
+  "workspaces": [
+    "apps/web",
+    "packages/*"
+  ]
+}

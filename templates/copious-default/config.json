@@ -1,0 +1,48 @@
+{
+  "_comment": "Template configuration for the Copious default CV template. This drives both the template-builder UI (P1) and render-time validation.",
+  "name": "Copious Default",
+  "version": "1.0.0",
+  "description": "Standard Copious branded CV template with cover page, running header, and all sections.",
+
+  "sections": [
+    "career_summary",
+    "technical_skills",
+    "education",
+    "employment"
+  ],
+
+  "required_fields": [
+    "candidate.full_name",
+    "candidate.role_title"
+  ],
+
+  "constraints": {
+    "max_summary_bullets": 6,
+    "min_summary_bullets": 3,
+    "max_responsibilities_per_job": 8,
+    "max_skill_groups": 20,
+    "max_skills_per_group": 10
+  },
+
+  "conditional_heading": {
+    "field": "education.has_certifications",
+    "true_heading": "EDUCATIONAL QUALIFICATIONS & CERTIFICATIONS",
+    "false_heading": "EDUCATIONAL QUALIFICATIONS"
+  },
+
+  "optional_employment_fields": [
+    "client",
+    "project_name",
+    "technology_used",
+    "project_description"
+  ],
+
+  "template_file": "template.docx",
+
+  "_notes": [
+    "template.docx is the actual Word file with {{ }} placeholders — author in Word/Google Docs.",
+    "See docs/cv_schema_template_mapping.md §4 for the full placeholder reference.",
+    "The template.docx file is NOT committed to git (it is gitignored as it may contain candidate PII during development).",
+    "Place your template.docx in this directory after cloning. A sample template with placeholders only (no PII) is provided as template-sample.docx."
+  ]
+}

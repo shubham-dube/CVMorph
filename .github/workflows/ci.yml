@@ -1,0 +1,101 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ── Backend: lint + typecheck + tests ────────────────────────────────────────
+  api:
+    name: API (Python)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/api
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: cvplatform
+          POSTGRES_PASSWORD: cvplatform
+          POSTGRES_DB: cvplatform_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Lint (ruff)
+        run: uv run ruff check .
+
+      - name: Type check (mypy)
+        run: uv run mypy app/
+
+      - name: Run tests
+        env:
+          DATABASE_URL: postgresql+asyncpg://cvplatform:cvplatform@localhost:5432/cvplatform_test
+          DATABASE_URL_SYNC: postgresql+psycopg2://cvplatform:cvplatform@localhost:5432/cvplatform_test
+          REDIS_URL: redis://localhost:6379/0
+          CELERY_BROKER_URL: redis://localhost:6379/0
+          CELERY_RESULT_BACKEND: redis://localhost:6379/1
+          SECRET_KEY: test-secret-key-minimum-32-characters-long
+          ANTHROPIC_API_KEY: test-key-not-used-in-unit-tests
+        run: uv run pytest tests/ --cov=app --cov-report=xml -v
+
+  # ── Frontend: lint + typecheck ───────────────────────────────────────────────
+  web:
+    name: Web (Next.js)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        working-directory: .
+
+      - name: Type check
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
