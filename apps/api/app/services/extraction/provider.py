@@ -21,8 +21,9 @@ class AIProvider(ABC):
     Provider-agnostic extraction interface.
 
     Implementations:
-      - ClaudeProvider (claude_provider.py) — default
-      - [Future] OpenAIProvider, GeminiProvider
+      - GeminiProvider (gemini_provider.py) — default
+      - ClaudeProvider (claude_provider.py)
+      - [Future] OpenAIProvider
     """
 
     @abstractmethod
@@ -57,12 +58,20 @@ class ExtractionError(Exception):
     """Raised when extraction fails after retries."""
 
 
-def get_provider(provider_name: str = "claude") -> AIProvider:
+class ExtractionAuthError(ExtractionError):
+    """Raised when the AI provider rejects the configured API key."""
+
+
+def get_provider(provider_name: str = "gemini") -> AIProvider:
     """
     Factory — returns the correct AIProvider implementation.
 
     Future: look up per-org provider config from DB.
     """
+    if provider_name == "gemini":
+        from app.services.extraction.gemini_provider import GeminiProvider
+
+        return GeminiProvider()
     if provider_name == "claude":
         from app.services.extraction.claude_provider import ClaudeProvider
 

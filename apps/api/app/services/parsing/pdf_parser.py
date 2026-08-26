@@ -42,6 +42,10 @@ def extract_text(file_bytes: bytes) -> str:
     except Exception as exc:
         raise ParseError(f"Cannot open PDF: {exc}") from exc
 
+    if doc.is_encrypted and not doc.authenticate(""):
+        doc.close()
+        raise ParseError("Encrypted PDFs are not supported.")
+
     pages_text: list[str] = []
     for page_num, page in enumerate(doc):
         try:

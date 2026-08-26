@@ -24,7 +24,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Annotated
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 # ── Provenance / trust primitives ─────────────────────────────────────────────
@@ -140,6 +140,13 @@ class Education(BaseModel):
     )
     items: list[EducationItem]
 
+    @model_validator(mode="after")
+    def sync_has_certifications(self) -> Education:
+        self.has_certifications = any(
+            item.type == EducationType.certification for item in self.items
+        )
+        return self
+
 
 class ResponsibilityBullet(Provenance):
     """One bullet in an Employment entry's Responsibilities list."""
@@ -182,6 +189,22 @@ class EmploymentEntry(BaseModel):
 
 
 # ── Root schema ───────────────────────────────────────────────────────────────
+
+
+class ExtractedProfile(BaseModel):
+    """
+    LLM output: Canonical Candidate Profile content without backend-owned meta.
+
+    Gemini (and other structured-output providers) fill this model. The API
+    layer then wraps it in CandidateProfile.meta with org/candidate/document IDs.
+    """
+
+    candidate: Candidate
+    career_summary: CareerSummary
+    technical_skills: TechnicalSkills
+    education: Education
+    employment: list[EmploymentEntry]
+    overall_confidence: Annotated[float, Field(ge=0.0, le=1.0)]
 
 
 class CandidateProfile(BaseModel):
