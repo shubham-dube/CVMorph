@@ -320,7 +320,8 @@ class Generation(Base):
     triggered_by: Mapped[str | None] = mapped_column(
         UUID(as_uuid=False), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
-    approved_at: Mapped[datetime | None] = mapped_column(
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
     created_at: Mapped[datetime] = mapped_column(
