@@ -11,6 +11,7 @@ from pathlib import Path
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
 from pydantic import BaseModel
 
+from app.api.v1.deps import CurrentUser
 from app.schemas.candidate_profile import CandidateProfile
 from app.services.extraction.provider import (
     ExtractionAuthError,
@@ -30,20 +31,30 @@ class ExtractResponse(BaseModel):
     profile: CandidateProfile
 
 
-@router.post("/extract", response_model=ExtractResponse)
+@router.post(
+    "/extract",
+    response_model=ExtractResponse,
+    summary="Synchronous CV extraction (dev/demo)",
+    description=(
+        "Upload a PDF or DOCX and receive the extracted Canonical Candidate Profile immediately. "
+        "**This is a synchronous, stateless endpoint — no DB persistence.** "
+        "Use for demos, testing, and the template builder UI. "
+        "For production uploads, use POST /v1/documents which handles async processing and storage."
+    ),
+)
 async def extract_cv(
+    user: CurrentUser,
     file: UploadFile = File(...),
-    org_id: str = Form(""),
+    extraction_instructions: str = Form(""),
     candidate_id: str = Form(""),
     source_document_id: str = Form(""),
-    extraction_instructions: str = Form(""),
 ) -> ExtractResponse:
     """
     Extract a structured Canonical Candidate Profile from a PDF or DOCX CV.
 
     Parses the file to text, then runs Gemini structured extraction.
-    Optional form fields (org_id, candidate_id, source_document_id) are
-    echoed into profile.meta; UUIDs are generated when they are omitted.
+    org_id is taken from the authenticated user's JWT.
+    candidate_id and source_document_id are optional; UUIDs are generated when omitted.
     """
     filename = file.filename or ""
     suffix = Path(filename).suffix.lower()
@@ -83,7 +94,7 @@ async def extract_cv(
         provider = get_provider("gemini")
         profile = await provider.extract(
             raw_text=text,
-            org_id=org_id,
+            org_id=user.org_id,          # always from JWT — never trust form field
             candidate_id=candidate_id,
             source_document_id=source_document_id,
             instructions=extraction_instructions or None,
