@@ -1,0 +1,120 @@
+{
+  "meta": {
+    "org_id": "11111111-1111-1111-1111-111111111111",
+    "candidate_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+    "source_document_id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+    "extraction_model": "claude-sonnet-4-5",
+    "extraction_version": "v1",
+    "extraction_instructions": null,
+    "overall_confidence": 0.93
+  },
+  "candidate": {
+    "full_name": "Rupesh G",
+    "role_title": "Snr. Full Stack Consultant",
+    "email": "rupesh@example.com",
+    "phone": "+91 9999999999",
+    "location": "Bangalore, India"
+  },
+  "career_summary": {
+    "bullets": [
+      {
+        "text": "Engineering Leader with **15+ years** of software engineering experience and progressive leadership across architecture, platform engineering, and cloud-native solutions.",
+        "confidence": 0.95,
+        "source_type": "verified_transformation",
+        "evidence": "Engineering Leader with 15+ years of software engineering experience..."
+      },
+      {
+        "text": "Proven track record delivering enterprise-grade systems for global clients including **J.P. Morgan Chase**, **McLaren**, and **Standard Bank**.",
+        "confidence": 0.92,
+        "source_type": "verified_transformation",
+        "evidence": "delivering critical banking platforms for J.P. Morgan Chase (Trade Finance)..."
+      },
+      {
+        "text": "Deep expertise in **Java**, **Spring Boot**, **React**, **AWS**, and distributed systems design.",
+        "confidence": 0.9,
+        "source_type": "source",
+        "evidence": "Java, Spring Boot, React, AWS..."
+      }
+    ]
+  },
+  "technical_skills": {
+    "groups": [
+      {
+        "category": "Technical Leadership",
+        "skills": ["Platform Engineering Strategy & Roadmap", "Enterprise & Solution Architecture", "Distributed Systems", "Technical Mentoring"],
+        "confidence": 0.9,
+        "source_type": "source",
+        "evidence": null
+      },
+      {
+        "category": "Programming Languages",
+        "skills": ["Java", "TypeScript", "Python", "SQL"],
+        "confidence": 0.97,
+        "source_type": "source",
+        "evidence": null
+      },
+      {
+        "category": "Frameworks & Libraries",
+        "skills": ["Spring Boot", "React", "Node.js", "Hibernate"],
+        "confidence": 0.95,
+        "source_type": "source",
+        "evidence": null
+      },
+      {
+        "category": "Cloud & DevOps",
+        "skills": ["AWS", "Docker", "Kubernetes", "GitHub Actions", "Terraform"],
+        "confidence": 0.93,
+        "source_type": "source",
+        "evidence": null
+      },
+      {
+        "category": "Databases",
+        "skills": ["PostgreSQL", "MySQL", "MongoDB", "Redis"],
+        "confidence": 0.95,
+        "source_type": "source",
+        "evidence": null
+      }
+    ]
+  },
+  "education": {
+    "has_certifications": false,
+    "items": [
+      {
+        "type": "degree",
+        "text": "Bachelor of Engineering (B.E.) in Computer Science from Rajiv Gandhi Proudyogiki Vishwavidyalaya (RGPV), India (2003).",
+        "confidence": 0.98,
+        "source_type": "source",
+        "evidence": "Bachelor of Engineering (B.E.) in Computer Science from Rajiv Gandhi Proudyogiki Vishwavidyalaya (RGPV), India (2003)."
+      }
+    ]
+  },
+  "employment": [
+    {
+      "company": "McLaren Strategic Solutions",
+      "client": null,
+      "role": "Technical Architect",
+      "start_date": "2022-05",
+      "end_date": null,
+      "is_current": true,
+      "duration_display": "May/2022 - Present",
+      "project_name": null,
+      "technology_used": [],
+      "project_description": null,
+      "responsibilities": [
+        {
+          "text": "Own end-to-end delivery and technical health of critical banking platforms for **J.P. Morgan Chase (Trade Finance)** within a highly regulated environment.",
+          "confidence": 0.92,
+          "source_type": "verified_transformation",
+          "evidence": "Own end-to-end delivery and technical health of critical banking platforms for J.P. Morgan Chase (Trade Finance) within a highly regulated environment."
+        },
+        {
+          "text": "Lead a team of **12 engineers** across front-end, back-end, and infrastructure, setting architecture standards and code review practices.",
+          "confidence": 0.90,
+          "source_type": "verified_transformation",
+          "evidence": "Lead a team of 12 engineers..."
+        }
+      ],
+      "confidence": 0.90
+    }
+  ]
+}
