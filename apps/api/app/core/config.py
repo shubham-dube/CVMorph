@@ -47,6 +47,8 @@ class Settings(BaseSettings):
     ANTHROPIC_API_KEY: str = ""
     AI_DEFAULT_MODEL: str = "claude-sonnet-4-5"
     AI_EXTRACTION_VERSION: str = "v1"
+    GEMINI_API_KEY: str = ""
+    GEMINI_MODEL: str = "gemini-2.5-flash"
 
     # ── Storage ────────────────────────────────────────────────────────────
     STORAGE_BACKEND: Literal["local", "s3", "gcs"] = "local"

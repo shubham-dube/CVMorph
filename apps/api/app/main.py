@@ -25,6 +25,7 @@ from app.api.v1.routers import (
     templates,
     orgs,
     jobs,
+    extract,
 )
 
 
@@ -69,6 +70,7 @@ app.add_middleware(
 API_PREFIX = "/v1"
 
 app.include_router(auth.router,        prefix=API_PREFIX)
+app.include_router(extract.router,     prefix=API_PREFIX, tags=["extract"])
 app.include_router(documents.router,   prefix=API_PREFIX, tags=["documents"])
 app.include_router(candidates.router,  prefix=API_PREFIX, tags=["candidates"])
 app.include_router(generations.router, prefix=API_PREFIX, tags=["generations"])
