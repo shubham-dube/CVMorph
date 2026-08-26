@@ -194,6 +194,7 @@ async def _run_async(generation_id: str, org_id: str) -> dict:
 
             # ── 8. Update Generation ──────────────────────────────────────────
             now = datetime.now(tz=timezone.utc)
+            db.add(generation)  # Reattach to this session
             generation.status = "complete"
             generation.output_document_id = output_doc.id
             generation.completed_at = now

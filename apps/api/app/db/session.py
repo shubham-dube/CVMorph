@@ -27,15 +27,26 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from app.core.config import settings
 
-engine = create_async_engine(
-    settings.DATABASE_URL,
-    echo=settings.DEBUG,
-    pool_pre_ping=True,
-    pool_size=10,
-    max_overflow=20,
-    # Ensures connections are returned to pool promptly
-    pool_recycle=3600,
-)
+import sys
+from sqlalchemy.pool import NullPool, QueuePool
+
+is_celery = "celery" in sys.argv[0]
+
+engine_kwargs = {
+    "echo": settings.DEBUG,
+}
+
+if is_celery:
+    engine_kwargs["poolclass"] = NullPool
+else:
+    engine_kwargs.update({
+        "pool_pre_ping": True,
+        "pool_size": 10,
+        "max_overflow": 20,
+        "pool_recycle": 3600,
+    })
+
+engine = create_async_engine(settings.DATABASE_URL, **engine_kwargs)
 
 AsyncSessionLocal = async_sessionmaker(
     bind=engine,
@@ -73,7 +84,7 @@ async def get_session_for_org(org_id: str) -> AsyncGenerator[AsyncSession, None]
         try:
             # SET LOCAL is transaction-scoped — safe for pooled connections
             await session.execute(
-                text("SET LOCAL app.current_org_id = :org_id"), {"org_id": org_id}
+                text("SELECT set_config('app.current_org_id', :org_id, true)"), {"org_id": org_id}
             )
             yield session
             await session.commit()

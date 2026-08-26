@@ -12,7 +12,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN pip install uv
 
 COPY apps/api/pyproject.toml .
+ENV UV_PROJECT_ENVIRONMENT="/venv"
 RUN uv sync --no-dev
+ENV PATH="/venv/bin:$PATH"
 
 COPY apps/api/ .
 

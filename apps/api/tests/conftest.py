@@ -126,7 +126,7 @@ async def async_client(db_session: AsyncSession, seed_org: Organization) -> Asyn
 
     async def override_scoped():
         await db_session.execute(
-            text("SET LOCAL app.current_org_id = :org_id"),
+            text("SELECT set_config('app.current_org_id', :org_id, true)"),
             {"org_id": seed_org.id},
         )
         yield db_session
