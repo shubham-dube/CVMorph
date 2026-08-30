@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import sqlalchemy as sa
 from alembic import op
-from sqlalchemy.dialects.postgresql import JSON, UUID
+from sqlalchemy.dialects.postgresql import ENUM as PG_ENUM, JSON, UUID
 
 # revision identifiers used by Alembic
 revision: str = "001"
@@ -31,9 +31,27 @@ def upgrade() -> None:
     op.execute("CREATE EXTENSION IF NOT EXISTS pgcrypto")
 
     # ── Enums ──────────────────────────────────────────────────────────────────
-    op.execute("CREATE TYPE user_role_enum AS ENUM ('admin', 'recruiter')")
-    op.execute("CREATE TYPE document_type_enum AS ENUM ('original', 'generated')")
-    op.execute("CREATE TYPE review_action_enum AS ENUM ('confirm', 'edit', 'remove')")
+    op.execute("""
+        DO $$ BEGIN
+            CREATE TYPE user_role_enum AS ENUM ('admin', 'recruiter');
+        EXCEPTION
+            WHEN duplicate_object THEN null;
+        END $$;
+    """)
+    op.execute("""
+        DO $$ BEGIN
+            CREATE TYPE document_type_enum AS ENUM ('original', 'generated');
+        EXCEPTION
+            WHEN duplicate_object THEN null;
+        END $$;
+    """)
+    op.execute("""
+        DO $$ BEGIN
+            CREATE TYPE review_action_enum AS ENUM ('confirm', 'edit', 'remove');
+        EXCEPTION
+            WHEN duplicate_object THEN null;
+        END $$;
+    """)
 
     # ─────────────────────────────────────────────────────────────────────────
     # organizations
@@ -75,7 +93,7 @@ def upgrade() -> None:
         sa.Column("google_sub", sa.String(255), nullable=True),
         sa.Column(
             "role",
-            sa.Enum("admin", "recruiter", name="user_role_enum", create_type=False),
+            PG_ENUM("admin", "recruiter", name="user_role_enum", create_type=False),
             nullable=False,
             server_default="recruiter",
         ),
@@ -140,7 +158,7 @@ def upgrade() -> None:
         ),
         sa.Column(
             "type",
-            sa.Enum("original", "generated", name="document_type_enum", create_type=False),
+            PG_ENUM("original", "generated", name="document_type_enum", create_type=False),
             nullable=False,
         ),
         sa.Column("original_filename", sa.String(500), nullable=False),
@@ -347,7 +365,7 @@ def upgrade() -> None:
         sa.Column("field_path", sa.Text, nullable=False),
         sa.Column(
             "action",
-            sa.Enum("confirm", "edit", "remove", name="review_action_enum", create_type=False),
+            PG_ENUM("confirm", "edit", "remove", name="review_action_enum", create_type=False),
             nullable=False,
         ),
         sa.Column("old_value", JSON, nullable=True),

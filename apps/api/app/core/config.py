@@ -9,7 +9,7 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -37,6 +37,24 @@ class Settings(BaseSettings):
     DATABASE_URL_SYNC: str = Field(
         "postgresql+psycopg2://cvplatform:cvplatform@localhost:5432/cvplatform"
     )
+
+    @field_validator("DATABASE_URL", mode="after")
+    @classmethod
+    def assemble_async_db_url(cls, v: str) -> str:
+        if v.startswith("postgresql://"):
+            return v.replace("postgresql://", "postgresql+asyncpg://", 1)
+        if v.startswith("postgres://"):
+            return v.replace("postgres://", "postgresql+asyncpg://", 1)
+        return v
+
+    @field_validator("DATABASE_URL_SYNC", mode="after")
+    @classmethod
+    def assemble_sync_db_url(cls, v: str) -> str:
+        if v.startswith("postgresql://"):
+            return v.replace("postgresql://", "postgresql+psycopg2://", 1)
+        if v.startswith("postgres://"):
+            return v.replace("postgres://", "postgresql+psycopg2://", 1)
+        return v
 
     # ── AI Provider ────────────────────────────────────────────────────────
     ANTHROPIC_API_KEY: str = ""

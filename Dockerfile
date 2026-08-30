@@ -3,10 +3,10 @@ FROM python:3.12-slim
 WORKDIR /app
 
 # ── System dependencies ────────────────────────────────────────────────────────
-# PyMuPDF    → libmupdf-dev, gcc
-# xelatex    → texlive-xetex + fonts (for LaTeX template rendering)
+# PyMuPDF     → libmupdf-dev, gcc
+# xelatex     → texlive-xetex + fonts (for LaTeX template rendering)
 # LibreOffice → libreoffice-writer (for PDF↔DOCX conversion)
-# poppler    → poppler-utils (PDF utilities)
+# poppler     → poppler-utils (PDF utilities)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libmupdf-dev \
     gcc \
@@ -36,4 +36,5 @@ RUN mkdir -p /root/.config/libreoffice
 
 EXPOSE 8000
 
+# Run migrations automatically on container start, then launch API server
 CMD ["sh", "-c", "uv run alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
