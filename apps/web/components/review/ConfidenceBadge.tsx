@@ -1,42 +1,37 @@
-/**
- * ConfidenceBadge — Epic 4.3
- *
- * Shows a colour-coded badge (high / medium / low) for a confidence score.
- * The core trust feature from PRD §9.3 — built early, used on every field.
- *
- * Usage:
- *   <ConfidenceBadge confidence={0.92} />
- *   <ConfidenceBadge confidence={0.72} />  ← shows as medium/amber
- *   <ConfidenceBadge confidence={0.45} />  ← shows as low/red, triggers review
- *
- * TODO (Epic 4.3): implement with Tailwind classes + animation
- */
+import { CheckCircle2, AlertTriangle, AlertOctagon } from "lucide-react";
+import { getConfidenceLevel, type ConfidenceLevel } from "@/lib/types";
+import { cn, formatPercent } from "@/lib/utils";
 
-import type { ConfidenceLevel } from "@cv-platform/shared-types";
-import { getConfidenceLevel } from "@cv-platform/shared-types";
+const CONFIG: Record<ConfidenceLevel, { label: string; icon: typeof CheckCircle2; color: string; bg: string }> = {
+  high: { label: "High", icon: CheckCircle2, color: "text-confidence-high", bg: "bg-confidence-high-soft" },
+  medium: { label: "Medium", icon: AlertTriangle, color: "text-confidence-medium", bg: "bg-confidence-medium-soft" },
+  low: { label: "Low", icon: AlertOctagon, color: "text-confidence-low", bg: "bg-confidence-low-soft" },
+};
 
-interface ConfidenceBadgeProps {
+export function ConfidenceBadge({
+  confidence,
+  showValue = true,
+  className,
+}: {
   confidence: number;
   showValue?: boolean;
-}
-
-export function ConfidenceBadge({ confidence, showValue = false }: ConfidenceBadgeProps) {
-  const level: ConfidenceLevel = getConfidenceLevel(confidence);
-
-  // TODO (Epic 4.3): replace with polished Tailwind design
-  const colors: Record<ConfidenceLevel, string> = {
-    high: "bg-green-500",
-    medium: "bg-amber-400",
-    low: "bg-red-500",
-  };
-
+  className?: string;
+}) {
+  const level = getConfidenceLevel(confidence);
+  const { label, icon: Icon, color, bg } = CONFIG[level];
   return (
     <span
-      className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium text-white ${colors[level]}`}
-      title={`Confidence: ${(confidence * 100).toFixed(0)}%`}
+      className={cn(
+        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium leading-none",
+        bg,
+        color,
+        className
+      )}
+      title={`Extraction confidence: ${formatPercent(confidence)}`}
     >
-      {level.toUpperCase()}
-      {showValue && ` · ${(confidence * 100).toFixed(0)}%`}
+      <Icon className="h-3 w-3" />
+      {label}
+      {showValue && <span className="font-mono opacity-80">{formatPercent(confidence)}</span>}
     </span>
   );
 }

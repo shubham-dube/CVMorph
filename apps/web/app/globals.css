@@ -1,26 +1,176 @@
 @import "tailwindcss";
 
+/* ============================================================
+   CVMorph design tokens
+   Dark-first "control room" theme with a fully-supported light
+   counterpart. Confidence colors are fixed across both themes —
+   see docs/UX_AND_DESIGN_SYSTEM.md §5.2.
+   ============================================================ */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Dark theme is the default token set */
+  --bg: #08090d;
+  --bg-elevated: #0c0e14;
+  --surface: #111319;
+  --surface-raised: #191c24;
+  --surface-hover: #1c1f29;
+  --border: #23262f;
+  --border-strong: #2e323d;
+  --text: #f3f4f6;
+  --text-muted: #9aa0ae;
+  --text-faint: #5b6170;
+
+  --accent: #8b7cf6;
+  --accent-strong: #a594ff;
+  --accent-soft: rgba(139, 124, 246, 0.14);
+  --accent-contrast: #0a0714;
+
+  --confidence-high: #34d399;
+  --confidence-high-soft: rgba(52, 211, 153, 0.14);
+  --confidence-medium: #fbbf24;
+  --confidence-medium-soft: rgba(251, 191, 36, 0.14);
+  --confidence-low: #f87171;
+  --confidence-low-soft: rgba(248, 113, 113, 0.14);
+
+  --danger: #f87171;
+  --danger-soft: rgba(248, 113, 113, 0.12);
+
+  --shadow-color: 0 0% 0%;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+}
+
+[data-theme="light"] {
+  --bg: #fafafb;
+  --bg-elevated: #f2f3f5;
+  --surface: #ffffff;
+  --surface-raised: #ffffff;
+  --surface-hover: #f4f4f6;
+  --border: #e5e7eb;
+  --border-strong: #d6d9df;
+  --text: #12131a;
+  --text-muted: #5f6472;
+  --text-faint: #9aa0ae;
+
+  --accent: #6d5bd0;
+  --accent-strong: #5b47c7;
+  --accent-soft: rgba(109, 91, 208, 0.1);
+  --accent-contrast: #ffffff;
+
+  --confidence-high: #16a34a;
+  --confidence-high-soft: rgba(22, 163, 74, 0.1);
+  --confidence-medium: #d97706;
+  --confidence-medium-soft: rgba(217, 119, 6, 0.1);
+  --confidence-low: #dc2626;
+  --confidence-low-soft: rgba(220, 38, 38, 0.1);
+
+  --danger: #dc2626;
+  --danger-soft: rgba(220, 38, 38, 0.08);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-bg: var(--bg);
+  --color-bg-elevated: var(--bg-elevated);
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-hover: var(--surface-hover);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-text: var(--text);
+  --color-text-muted: var(--text-muted);
+  --color-text-faint: var(--text-faint);
+
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-contrast: var(--accent-contrast);
+
+  --color-confidence-high: var(--confidence-high);
+  --color-confidence-high-soft: var(--confidence-high-soft);
+  --color-confidence-medium: var(--confidence-medium);
+  --color-confidence-medium-soft: var(--confidence-medium-soft);
+  --color-confidence-low: var(--confidence-low);
+  --color-confidence-low-soft: var(--confidence-low-soft);
+
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+
+  --font-sans: var(--font-inter);
+  --font-mono: var(--font-jbmono);
+
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  border-color: var(--border);
+}
+
+html {
+  color-scheme: dark;
+}
+html[data-theme="light"] {
+  color-scheme: light;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: var(--accent-soft);
+  color: var(--text);
+}
+
+/* Thin, unobtrusive scrollbars matching the theme */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 999px;
+  border: 2px solid var(--bg);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-faint);
+}
+
+/* Consistent focus ring across all interactive elements */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(2px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in {
+  animation: fade-in 160ms ease-out;
+}
+
+@keyframes shimmer {
+  0% { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, var(--surface) 25%, var(--surface-hover) 37%, var(--surface) 63%);
+  background-size: 800px 100%;
+  animation: shimmer 1.6s ease-in-out infinite;
+}
+
+/* Utility for markdown-bold-rendered rich text (see RichText component) */
+.richtext strong {
+  color: var(--text);
+  font-weight: 600;
 }

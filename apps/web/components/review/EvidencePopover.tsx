@@ -1,52 +1,46 @@
-/**
- * EvidencePopover — Epic 4.3
- *
- * A "Show source" popover that displays the verbatim evidence text from the
- * original CV that a field was derived from. The single highest-leverage trust
- * feature from PRD §4 — click any field, see where it came from.
- *
- * Usage:
- *   <EvidencePopover evidence={bullet.evidence} sourceType={bullet.source_type} />
- *
- * Behaviour:
- *   - evidence !== null → shows the source span text
- *   - source_type === "ai_generated" → shows a distinct "AI synthesised" warning
- *   - evidence === null + source_type !== "ai_generated" → should not happen (validator catches it)
- *
- * TODO (Epic 4.3): implement with a headless Radix UI popover primitive
- */
+import { Quote, Sparkles } from "lucide-react";
+import { Popover } from "@/components/ui/Popover";
+import type { SourceType } from "@/lib/types";
 
-import type { SourceType } from "@cv-platform/shared-types";
+const SOURCE_TYPE_LABEL: Record<SourceType, string> = {
+  source: "Copied directly from the original CV",
+  verified_transformation: "Reworded by AI, every fact checked against the source",
+  ai_generated: "Synthesized by AI — no single matching source sentence",
+};
 
-interface EvidencePopoverProps {
-  evidence: string | null;
-  sourceType: SourceType;
-}
-
-export function EvidencePopover({ evidence, sourceType }: EvidencePopoverProps) {
+export function EvidencePopover({ evidence, sourceType }: { evidence: string | null; sourceType: SourceType }) {
   if (sourceType === "ai_generated") {
     return (
-      <button
-        className="text-xs text-amber-400 underline decoration-dotted"
-        title="This content was synthesised by AI — no single source sentence"
+      <Popover
+        trigger={
+          <button className="inline-flex items-center gap-1 text-[11px] text-confidence-medium hover:underline underline-offset-2 decoration-dotted">
+            <Sparkles className="h-3 w-3" />
+            AI synthesized
+          </button>
+        }
       >
-        ⚠ AI generated
-      </button>
+        <p className="text-xs text-text-muted leading-relaxed">{SOURCE_TYPE_LABEL.ai_generated}</p>
+      </Popover>
     );
   }
 
   if (!evidence) return null;
 
   return (
-    // TODO (Epic 4.3): replace with Radix Popover
-    <details className="inline">
-      <summary className="text-xs text-blue-400 cursor-pointer list-none underline decoration-dotted">
-        Show source
-      </summary>
-      <div className="absolute z-10 p-3 bg-gray-800 border border-gray-600 rounded shadow-xl text-xs text-gray-200 max-w-sm">
-        <span className="font-semibold text-gray-400 uppercase tracking-wide">Source text</span>
-        <blockquote className="mt-1 italic">&ldquo;{evidence}&rdquo;</blockquote>
-      </div>
-    </details>
+    <Popover
+      trigger={
+        <button className="inline-flex items-center gap-1 text-[11px] text-accent hover:underline underline-offset-2 decoration-dotted">
+          <Quote className="h-3 w-3" />
+          Show source
+        </button>
+      }
+    >
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-text-faint mb-1.5">
+        {SOURCE_TYPE_LABEL[sourceType]}
+      </p>
+      <blockquote className="text-[13px] italic text-text-muted leading-relaxed border-l-2 border-border pl-3">
+        &ldquo;{evidence}&rdquo;
+      </blockquote>
+    </Popover>
   );
 }
