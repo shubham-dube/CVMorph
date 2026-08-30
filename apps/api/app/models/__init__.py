@@ -269,6 +269,9 @@ class Template(Base):
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     config_json: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     docx_storage_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    template_type: Mapped[str] = mapped_column(
+        String(10), nullable=False, default="docx"
+    )  # "docx" | "latex"
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_by: Mapped[str | None] = mapped_column(
         UUID(as_uuid=False), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
@@ -321,6 +324,7 @@ class Generation(Base):
         UUID(as_uuid=False), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    output_pdf_url: Mapped[str | None] = mapped_column(Text, nullable=True)  # PDF object key
     completed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )

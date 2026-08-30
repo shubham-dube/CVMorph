@@ -1,21 +1,22 @@
 """
 Templates API
 
-GET    /v1/templates        — list org's active templates
-GET    /v1/templates/{id}   — get template details + config
-POST   /v1/templates        — create/upload a new template (admin only)
-PATCH  /v1/templates/{id}   — update template name/description/config (admin only)
-DELETE /v1/templates/{id}   — soft-delete (set is_active = False) (admin only)
+GET    /v1/templates        — list org's templates (active by default)
+GET    /v1/templates/{id}   — get template details
+POST   /v1/templates        — upload a new template (admin only)
+PATCH  /v1/templates/{id}   — update template metadata (admin only)
+DELETE /v1/templates/{id}   — soft-delete (admin only)
 
-Design:
-  - Templates are org-scoped. The seeded "Copious Default" template is pre-loaded.
-  - The .docx file is stored in object storage; the DB row holds the storage key.
-  - config_json drives template-builder UI constraints (P1) and render-time validation.
-  - Multiple templates per org are supported in schema from day one (PRD §8, P1 feature).
+Supports two template types:
+  docx  — .docx file using docxtpl Jinja2 placeholders (classic approach)
+  latex — .tex.j2 file using Jinja2 with LaTeX-safe delimiters (<< >>, <% %>)
+
+Both types produce PDF + DOCX output via the render pipeline.
 """
 
 from __future__ import annotations
 
+import uuid
 from datetime import datetime
 
 from fastapi import APIRouter, HTTPException, UploadFile, status
@@ -28,10 +29,19 @@ from app.services.storage.object_store import get_object_store
 
 router = APIRouter(prefix="/templates")
 
-ALLOWED_TEMPLATE_MIMES = {
+# ── Allowed file types ────────────────────────────────────────────────────────
+ALLOWED_DOCX_MIMES = {
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    "application/octet-stream",  # some clients send this for .docx
+    "application/octet-stream",
 }
+
+
+def _detect_template_type(filename: str, content_type: str) -> str:
+    """Return 'latex' or 'docx' based on filename extension."""
+    name = (filename or "").lower()
+    if name.endswith(".tex.j2") or name.endswith(".tex"):
+        return "latex"
+    return "docx"
 
 
 # ── Schemas ───────────────────────────────────────────────────────────────────
@@ -43,17 +53,12 @@ class TemplateResponse(BaseModel):
     name: str
     description: str | None
     config_json: dict
+    template_type: str  # "docx" | "latex"
     is_active: bool
     created_at: datetime
     updated_at: datetime
 
     model_config = {"from_attributes": True}
-
-
-class CreateTemplateRequest(BaseModel):
-    name: str
-    description: str | None = None
-    config_json: dict = {}
 
 
 class UpdateTemplateRequest(BaseModel):
@@ -69,7 +74,6 @@ class UpdateTemplateRequest(BaseModel):
     "",
     response_model=list[TemplateResponse],
     summary="List templates",
-    description="Returns all active templates for the authenticated org.",
 )
 async def list_templates(
     user: CurrentUser,
@@ -80,8 +84,7 @@ async def list_templates(
         .where(Template.org_id == user.org_id, Template.is_active == True)  # noqa: E712
         .order_by(Template.created_at.asc())
     )
-    templates = result.scalars().all()
-    return [TemplateResponse.model_validate(t) for t in templates]
+    return [TemplateResponse.model_validate(t) for t in result.scalars().all()]
 
 
 @router.get(
@@ -113,18 +116,21 @@ async def get_template(
     status_code=status.HTTP_201_CREATED,
     summary="Upload a template (admin only)",
     description=(
-        "Upload a .docx template file with optional JSON config metadata. "
-        "The .docx file is stored in object storage and the DB row is created. "
-        "Admin role required."
+        "Upload a DOCX or LaTeX (.tex.j2) template file.\n\n"
+        "**DOCX templates**: Use docxtpl Jinja2 placeholders. "
+        "See docs/cv_schema_template_mapping.md for the placeholder reference.\n\n"
+        "**LaTeX templates**: Use Jinja2 with LaTeX-safe delimiters: "
+        "`<< expression >>`, `<% block %>`, `<# comment #>`. "
+        "LaTeX escaping is applied automatically to all profile values."
     ),
 )
 async def create_template(
-    user: AdminUser,  # admin only
+    user: AdminUser,
     db: ScopedDB,
     file: UploadFile | None = None,
     name: str = "New Template",
     description: str | None = None,
-    config_json: str = "{}",  # JSON string from multipart form
+    config_json: str = "{}",
 ) -> TemplateResponse:
     import json as json_mod
 
@@ -137,19 +143,44 @@ async def create_template(
         )
 
     storage_url = None
+    template_type = "docx"
+
     if file:
-        if file.content_type not in ALLOWED_TEMPLATE_MIMES and not file.filename.endswith(".docx"):
-            raise HTTPException(
-                status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
-                detail="Only .docx files are accepted as templates.",
-            )
+        filename = file.filename or "template"
+        template_type = _detect_template_type(filename, file.content_type or "")
+
+        # Validate file type
+        if template_type == "docx":
+            if (
+                file.content_type not in ALLOWED_DOCX_MIMES
+                and not filename.lower().endswith(".docx")
+            ):
+                raise HTTPException(
+                    status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+                    detail=(
+                        "For DOCX templates, upload a .docx file. "
+                        "For LaTeX templates, upload a .tex.j2 file."
+                    ),
+                )
 
         file_bytes = await file.read()
-        store = get_object_store()
-        import uuid
+        if not file_bytes:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Uploaded template file is empty.",
+            )
 
-        key = f"{user.org_id}/templates/{uuid.uuid4()}/{file.filename}"
-        storage_url = await store.put(key, file_bytes, content_type=file.content_type or "application/octet-stream")
+        store = get_object_store()
+        key = f"{user.org_id}/templates/{uuid.uuid4()}/{filename}"
+        content_type = (
+            file.content_type
+            or (
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                if template_type == "docx"
+                else "text/plain"
+            )
+        )
+        storage_url = await store.put(key, file_bytes, content_type=content_type)
 
     template = Template(
         org_id=user.org_id,
@@ -157,6 +188,7 @@ async def create_template(
         description=description,
         config_json=config,
         docx_storage_url=storage_url,
+        template_type=template_type,
         created_by=user.user_id,
     )
     db.add(template)
@@ -200,7 +232,6 @@ async def update_template(
     "/{template_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Deactivate template (admin only)",
-    description="Soft-deletes the template by setting is_active = False. Does not delete the .docx file.",
 )
 async def delete_template(
     template_id: str,
