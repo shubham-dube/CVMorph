@@ -1,16 +1,13 @@
 """
 Documents API
 
-POST   /v1/documents        — upload a CV (PDF or DOCX), enqueue parse + extract
+POST   /v1/documents        — upload a CV (PDF or DOCX), start parse + extract pipeline
 GET    /v1/documents/{id}   — get document metadata + parse status
+GET    /v1/documents        — list documents for the org/candidate
 
-The upload endpoint is the entry point for the full pipeline:
-  upload → parse_task (text extraction) → extract_task (Gemini AI) →
-  CandidateProfile row created → recruiter review → approval → render_task → .docx output
-
-All uploads are tenant-scoped via org_id from the JWT. The parse + extract jobs
-run asynchronously — poll GET /v1/jobs/{job_id} for status, or watch
-GET /v1/candidates/{id}/profile until extraction_status = 'ready_for_review'.
+Upload endpoint starts the pipeline via FastAPI BackgroundTasks (same process,
+no Celery required). job_id == document_id — poll GET /v1/jobs/{document_id}
+for status.
 """
 
 from __future__ import annotations
@@ -18,14 +15,13 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, UploadFile, status
 from pydantic import BaseModel
 from sqlalchemy import select
 
 from app.api.v1.deps import CurrentUser, ScopedDB
 from app.models import Candidate, Document, UsageEvent
 from app.services.storage.object_store import get_object_store
-from app.workers.tasks.parse_task import run as parse_run
 
 router = APIRouter(prefix="/documents")
 
@@ -42,7 +38,7 @@ MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024  # 10 MB
 class DocumentUploadResponse(BaseModel):
     document_id: str
     candidate_id: str
-    job_id: str
+    job_id: str          # == document_id — poll GET /v1/jobs/{job_id}
     status: str = "queued"
     message: str
 
@@ -76,33 +72,27 @@ class DocumentListResponse(BaseModel):
     status_code=status.HTTP_202_ACCEPTED,
     summary="Upload a CV",
     description=(
-        "Upload a PDF or DOCX CV file. Returns a `document_id` and `job_id` immediately. "
-        "The file is stored in object storage and a background job (parse → extract) is queued.\n\n"
-        "**Polling:**\n"
-        "- `GET /v1/jobs/{job_id}` for parse job status\n"
-        "- `GET /v1/candidates/{candidate_id}/profile` — poll `extraction_status` until "
-        "`ready_for_review`\n\n"
+        "Upload a PDF or DOCX CV file. Returns `document_id` (== `job_id`) immediately.\n\n"
+        "**Polling:** `GET /v1/jobs/{job_id}` — poll until `status = 'ready_for_review'`.\n\n"
         "**Optional params:**\n"
-        "- `candidate_id` — link to existing candidate, or a new one is auto-created\n"
-        "- `extraction_instructions` — PRD §9.6 custom instructions for the AI (e.g. "
-        "'treat company X as client', 'focus on Python skills')"
+        "- `candidate_id` — link to existing candidate (auto-created if omitted)\n"
+        "- `extraction_instructions` — free-text guidance for the AI extraction step"
     ),
 )
 async def upload_document(
     file: UploadFile,
+    background_tasks: BackgroundTasks,
     user: CurrentUser,
     db: ScopedDB,
-    candidate_id: str | None = Query(None, description="Existing candidate UUID to attach to"),
+    candidate_id: str | None = Query(None, description="Existing candidate UUID"),
     extraction_instructions: str | None = Query(
-        None,
-        description="Recruiter instructions for the AI extraction step",
+        None, description="Recruiter instructions for AI extraction"
     ),
 ) -> DocumentUploadResponse:
     # ── Validate MIME type ────────────────────────────────────────────────────
     content_type = file.content_type or ""
     filename = file.filename or "upload"
 
-    # Accept DOCX even if browser sends as octet-stream
     if content_type not in ALLOWED_MIME_TYPES:
         if filename.endswith(".docx"):
             content_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
@@ -145,8 +135,12 @@ async def upload_document(
                 detail=f"Candidate {candidate_id!r} not found in this org.",
             )
     else:
-        # Auto-create candidate from filename (recruiter can rename later)
-        candidate_name = filename.rsplit(".", 1)[0].replace("_", " ").replace("-", " ").title()
+        candidate_name = (
+            filename.rsplit(".", 1)[0]
+            .replace("_", " ")
+            .replace("-", " ")
+            .title()
+        )
         candidate = Candidate(
             id=str(uuid.uuid4()),
             org_id=user.org_id,
@@ -177,7 +171,6 @@ async def upload_document(
     )
     db.add(doc)
 
-    # ── Log upload usage event ────────────────────────────────────────────────
     db.add(
         UsageEvent(
             org_id=user.org_id,
@@ -188,18 +181,18 @@ async def upload_document(
     )
     await db.flush()
 
-    # ── Enqueue parse task (non-blocking) ─────────────────────────────────────
-    job = parse_run.delay(doc_id, user.org_id)
+    # ── Start pipeline in background (no Celery) ──────────────────────────────
+    from app.pipeline.parse import run_parse
+    background_tasks.add_task(run_parse, doc_id, user.org_id)
 
     return DocumentUploadResponse(
         document_id=doc_id,
         candidate_id=candidate.id,
-        job_id=job.id,
+        job_id=doc_id,   # job_id == document_id
         status="queued",
         message=(
-            f"CV '{filename}' uploaded successfully. "
-            f"Parsing started. Poll GET /v1/jobs/{job.id} for status, "
-            f"then GET /v1/candidates/{candidate.id}/profile when complete."
+            f"'{filename}' uploaded. "
+            f"Poll GET /v1/jobs/{doc_id} until status='ready_for_review'."
         ),
     )
 
@@ -208,7 +201,6 @@ async def upload_document(
     "",
     response_model=DocumentListResponse,
     summary="List documents",
-    description="List all documents for the org or a specific candidate.",
 )
 async def list_documents(
     user: CurrentUser,
@@ -231,12 +223,6 @@ async def list_documents(
     "/{document_id}",
     response_model=DocumentResponse,
     summary="Get document",
-    description=(
-        "Get document metadata and current parse status. "
-        "Use this to check `parse_status` after uploading.\n\n"
-        "**Parse status values:**\n"
-        "`queued` → `parsing` → `parsed` → `extracting` → `extracted` | `failed`"
-    ),
 )
 async def get_document(
     document_id: str,

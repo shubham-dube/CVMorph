@@ -27,24 +27,13 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from app.core.config import settings
 
-import sys
-from sqlalchemy.pool import NullPool, QueuePool
-
-is_celery = "celery" in sys.argv[0]
-
-engine_kwargs = {
+engine_kwargs: dict = {
     "echo": settings.DEBUG,
+    "pool_pre_ping": True,
+    "pool_size": 10,
+    "max_overflow": 20,
+    "pool_recycle": 3600,
 }
-
-if is_celery:
-    engine_kwargs["poolclass"] = NullPool
-else:
-    engine_kwargs.update({
-        "pool_pre_ping": True,
-        "pool_size": 10,
-        "max_overflow": 20,
-        "pool_recycle": 3600,
-    })
 
 engine = create_async_engine(settings.DATABASE_URL, **engine_kwargs)
 

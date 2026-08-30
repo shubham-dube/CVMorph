@@ -24,13 +24,14 @@ dependencies = [
     "python-jose[cryptography]>=3.3.0",
     "bcrypt>=4.0.0",
 
-    # Async jobs
-    "celery>=5.4.0",
-    "redis>=5.0.0",
+    # Async job processing (via FastAPI BackgroundTasks — no Celery needed)
+    # Background tasks run in-process with asyncio.
 
     # Document parsing
     "PyMuPDF>=1.24.0",         # PDF parsing
     "python-docx>=1.1.0",      # DOCX parsing
+    # Template rendering
+    "jinja2>=3.1.0",            # LaTeX template rendering
     "docxtpl>=0.18.0",         # DOCX template rendering
 
     # AI provider SDK

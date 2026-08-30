@@ -1,5 +1,6 @@
 services:
   # ── PostgreSQL ────────────────────────────────────────────────────────────────
+  # Remove this service and update DATABASE_URL in .env when using Supabase.
   postgres:
     image: postgres:16-alpine
     environment:
@@ -17,18 +18,7 @@ services:
       timeout: 3s
       retries: 10
 
-  # ── Redis ─────────────────────────────────────────────────────────────────────
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-
-  # ── FastAPI API ───────────────────────────────────────────────────────────────
+  # ── FastAPI API (all processing runs inline — no separate workers needed) ─────
   api:
     build:
       context: .
@@ -38,11 +28,17 @@ services:
     environment:
       - DATABASE_URL=postgresql+asyncpg://cvplatform:cvplatform@postgres:5432/cvplatform
       - DATABASE_URL_SYNC=postgresql+psycopg2://cvplatform:cvplatform@postgres:5432/cvplatform
-      - REDIS_URL=redis://redis:6379/0
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/1
       - SECRET_KEY=local-dev-secret-key-change-in-production
       - DEBUG=true
+      - STORAGE_BACKEND=local
+      - LOCAL_STORAGE_PATH=/app/uploads
+      # Cloudflare R2 (optional — set these to switch from local storage):
+      # - STORAGE_BACKEND=r2
+      # - R2_ACCOUNT_ID=your_account_id
+      # - R2_ACCESS_KEY_ID=your_access_key
+      # - R2_SECRET_ACCESS_KEY=your_secret_key
+      # - R2_BUCKET=cvmorph
+      # - R2_PUBLIC_URL=https://pub-xxx.r2.dev
     env_file:
       - apps/api/.env
     volumes:
@@ -50,57 +46,8 @@ services:
       - ./uploads:/app/uploads
     depends_on:
       postgres:
-        condition: service_healthy
-      redis:
         condition: service_healthy
     command: uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-
-  # ── Celery Worker (default queue: parse + extract) ────────────────────────────
-  worker:
-    build:
-      context: .
-      dockerfile: infra/docker/worker.Dockerfile
-    environment:
-      - DATABASE_URL=postgresql+asyncpg://cvplatform:cvplatform@postgres:5432/cvplatform
-      - DATABASE_URL_SYNC=postgresql+psycopg2://cvplatform:cvplatform@postgres:5432/cvplatform
-      - REDIS_URL=redis://redis:6379/0
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/1
-    env_file:
-      - apps/api/.env
-    volumes:
-      - ./apps/api:/app
-      - ./uploads:/app/uploads
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    command: uv run celery -A app.workers.celery_app worker --loglevel=info -Q default
-
-  # ── Celery Worker (rendering queue) ──────────────────────────────────────────
-  worker-rendering:
-    build:
-      context: .
-      dockerfile: infra/docker/worker.Dockerfile
-    env_file:
-      - apps/api/.env
-    environment:
-      - DATABASE_URL=postgresql+asyncpg://cvplatform:cvplatform@postgres:5432/cvplatform
-      - DATABASE_URL_SYNC=postgresql+psycopg2://cvplatform:cvplatform@postgres:5432/cvplatform
-      - REDIS_URL=redis://redis:6379/0
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/1
-    volumes:
-      - ./apps/api:/app
-      - ./templates:/templates:ro
-      - ./uploads:/app/uploads
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    command: uv run celery -A app.workers.celery_app worker --loglevel=info -Q rendering
 
 volumes:
   postgres_data:

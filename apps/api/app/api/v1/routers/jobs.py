@@ -1,47 +1,36 @@
 """
-Jobs API — poll async job status.
+Jobs API — poll async job status by document_id.
 
-GET /v1/jobs/{job_id}
+GET /v1/jobs/{document_id}
 
-Jobs are Celery tasks. The job_id returned by POST /v1/documents is the
-Celery task ID. This endpoint wraps the Celery result backend to provide
-a uniform, human-readable status response.
+Since we no longer use Celery, job_id == document_id.
+We derive status from Document.parse_status + CandidateProfile.extraction_status
+stored directly in the database.
 
-Status mapping:
-  Celery PENDING   → "queued"
-  Celery STARTED   → depends on entity type (parsing / extracting / rendering)
-  Celery SUCCESS   → "parsed" | "ready_for_review" | "complete"
-  Celery FAILURE   → "failed"
-  Celery RETRY     → "retrying"
-
-NOTE (Phase 2/3 dependency):
-  This endpoint requires Phase 2 (parse_task) and Phase 3 (extract_task) to be
-  implemented. Until then, it returns the raw Celery state for debugging.
-  See docs/integration-guide-phase-2-3.md for the expected task result shape.
+Status ladder:
+  queued        → document uploaded, parse not started
+  parsing       → text extraction in progress
+  extracting    → AI profile extraction in progress
+  ready_for_review → profile created, ready for recruiter review
+  failed        → any step failed
 """
 
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel
+from sqlalchemy import select
+
+from app.api.v1.deps import CurrentUser, ScopedDB
+from app.models import CandidateProfile as CandidateProfileModel, Document
 
 router = APIRouter(prefix="/jobs")
-
-# Celery state → our status string
-_CELERY_STATE_MAP = {
-    "PENDING": "queued",
-    "STARTED": "processing",
-    "RETRY": "retrying",
-    "SUCCESS": "success",
-    "FAILURE": "failed",
-    "REVOKED": "cancelled",
-}
 
 
 class JobStatusResponse(BaseModel):
     job_id: str
     status: str
-    entity_type: str | None = None  # "document" | "profile" | "generation"
+    entity_type: str | None = None  # "document" | "profile"
     entity_id: str | None = None
     error_message: str | None = None
     meta: dict | None = None
@@ -52,60 +41,106 @@ class JobStatusResponse(BaseModel):
     response_model=JobStatusResponse,
     summary="Poll async job status",
     description=(
-        "Returns the current status of an async job (parse, extract, or render). "
-        "Poll this endpoint after receiving a `job_id` from POST /v1/documents or "
-        "POST /v1/generations.\n\n"
+        "Returns the current status of an async pipeline job. "
+        "`job_id` is the `document_id` returned by POST /v1/documents.\n\n"
         "**Status values:**\n"
-        "- `queued` — task is waiting in the queue\n"
-        "- `processing` — task is actively running\n"
-        "- `retrying` — task failed and is being retried\n"
-        "- `success` — task completed (check entity for result)\n"
-        "- `failed` — task failed permanently (see error_message)\n\n"
-        "**Polling recommendation:** exponential backoff starting at 1s, max 10s interval."
+        "- `queued` — upload complete, parse not yet started\n"
+        "- `parsing` — extracting text from the document\n"
+        "- `extracting` — AI profile extraction running\n"
+        "- `ready_for_review` — profile created, navigate to review page\n"
+        "- `failed` — pipeline failed (see error_message)\n\n"
+        "**Polling recommendation:** 2s interval, stop on `ready_for_review` or `failed`."
     ),
 )
-async def get_job_status(job_id: str) -> JobStatusResponse:
-    try:
-        from celery.result import AsyncResult
-        from app.workers.celery_app import celery_app
+async def get_job_status(
+    job_id: str,
+    user: CurrentUser,
+    db: ScopedDB,
+) -> JobStatusResponse:
+    """
+    Derive job status from DB columns — no Celery result backend needed.
+    job_id == document_id (set by POST /v1/documents).
+    """
+    # Fetch the document (scoped to org via RLS + explicit filter)
+    doc_result = await db.execute(
+        select(Document).where(
+            Document.id == job_id,
+            Document.org_id == user.org_id,
+        )
+    )
+    doc = doc_result.scalar_one_or_none()
 
-        result = AsyncResult(job_id, app=celery_app)
-        celery_state = result.state
+    if not doc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Job not found. Ensure job_id is a valid document_id for your org.",
+        )
 
-        mapped_status = _CELERY_STATE_MAP.get(celery_state, celery_state.lower())
+    parse_status = doc.parse_status
 
-        # Extract task-specific metadata from the result if available
-        entity_type = None
-        entity_id = None
-        error_message = None
-        meta = None
-
-        if celery_state == "SUCCESS" and result.result:
-            task_result = result.result
-            if isinstance(task_result, dict):
-                entity_type = task_result.get("entity_type")
-                entity_id = task_result.get("entity_id")
-                # Use the task's own status label if provided (e.g. "parsed", "ready_for_review")
-                if "status" in task_result:
-                    mapped_status = task_result["status"]
-
-        elif celery_state == "FAILURE":
-            error_message = str(result.result) if result.result else "Unknown error"
-
-        elif celery_state == "STARTED" and result.info:
-            meta = result.info if isinstance(result.info, dict) else None
-
+    # Terminal failure
+    if parse_status == "failed":
         return JobStatusResponse(
             job_id=job_id,
-            status=mapped_status,
-            entity_type=entity_type,
-            entity_id=entity_id,
-            error_message=error_message,
-            meta=meta,
+            status="failed",
+            entity_type="document",
+            entity_id=job_id,
+            error_message="CV parsing failed. Please check the file and try again.",
         )
 
-    except Exception as exc:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to retrieve job status: {exc}",
+    # Still queued or actively parsing text
+    if parse_status in ("pending", "queued", "parsing"):
+        return JobStatusResponse(
+            job_id=job_id,
+            status=parse_status if parse_status != "pending" else "queued",
+            entity_type="document",
+            entity_id=job_id,
         )
+
+    # Parse done — check if extraction has completed
+    if parse_status in ("parsed", "extracting", "extracted"):
+        # Look for a completed profile
+        profile_result = await db.execute(
+            select(CandidateProfileModel)
+            .where(
+                CandidateProfileModel.source_document_id == job_id,
+                CandidateProfileModel.org_id == user.org_id,
+            )
+            .order_by(CandidateProfileModel.created_at.desc())
+            .limit(1)
+        )
+        profile = profile_result.scalar_one_or_none()
+
+        if profile and profile.extraction_status == "failed":
+            return JobStatusResponse(
+                job_id=job_id,
+                status="failed",
+                entity_type="profile",
+                entity_id=profile.id,
+                error_message="AI extraction failed. The CV may be too short or in an unsupported format.",
+            )
+
+        if profile and profile.extraction_status in ("ready_for_review", "approved"):
+            return JobStatusResponse(
+                job_id=job_id,
+                status="ready_for_review",
+                entity_type="profile",
+                entity_id=profile.id,
+                meta={"overall_confidence": float(profile.overall_confidence or 0)},
+            )
+
+        # Profile not yet created or still extracting
+        return JobStatusResponse(
+            job_id=job_id,
+            status="extracting",
+            entity_type="document",
+            entity_id=job_id,
+        )
+
+    # Fallback
+    return JobStatusResponse(
+        job_id=job_id,
+        status=parse_status,
+        entity_type="document",
+        entity_id=job_id,
+    )

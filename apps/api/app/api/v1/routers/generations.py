@@ -1,27 +1,19 @@
 """
 Generations API
 
-POST /v1/generations        — trigger CV generation from an approved profile + template
-GET  /v1/generations/{id}   — poll status; returns signed download URL when complete
+POST /v1/generations        — trigger CV generation (approved profile + template)
+GET  /v1/generations/{id}   — poll status; returns signed download URLs when complete
 GET  /v1/generations        — list generations for the org
 
-Pre-conditions enforced before enqueuing the render job:
-  1. candidate belongs to the authenticated org
-  2. the candidate's active profile has extraction_status = 'approved'
-  3. template belongs to the authenticated org and is_active = True
-
-The actual rendering is done by the Celery render_task in the 'rendering' queue.
-This endpoint is non-blocking — it enqueues the job and returns immediately.
-
-Poll GET /v1/generations/{id} until status = 'complete', then use output_document_url
-to download the generated .docx.
+Both PDF and DOCX outputs are available on completion.
+Generation runs via FastAPI BackgroundTasks (no Celery).
 """
 
 from __future__ import annotations
 
 from datetime import datetime
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy import func, select
 
@@ -32,7 +24,6 @@ from app.models import (
     Generation,
     Template,
 )
-from app.workers.tasks.render_task import run as render_task_run
 
 router = APIRouter(prefix="/generations")
 
@@ -53,7 +44,8 @@ class GenerationResponse(BaseModel):
     profile_id: str
     status: str
     formatting_instructions: str | None
-    output_document_url: str | None = None
+    output_document_url: str | None = None   # DOCX download URL
+    output_pdf_url: str | None = None         # PDF download URL
     error_message: str | None
     created_at: datetime
     updated_at: datetime
@@ -77,20 +69,19 @@ class GenerationListResponse(BaseModel):
     status_code=status.HTTP_202_ACCEPTED,
     summary="Trigger CV generation",
     description=(
-        "Triggers rendering of a formatted CV from an approved candidate profile "
-        "and a template. Returns immediately — poll GET /v1/generations/{id} for status.\n\n"
+        "Generates a formatted CV from an approved candidate profile and a template.\n\n"
         "**Pre-conditions:**\n"
-        "- `candidate_id` must belong to your org\n"
-        "- The candidate must have an approved profile (see POST .../approve)\n"
-        "- `template_id` must belong to your org and be active\n\n"
-        "**Generation-time custom instructions (PRD §9.6):**\n"
-        "Use `formatting_instructions` for output emphasis/tone guidance. "
-        "Examples: 'emphasize AWS experience', 'shorten summary to 3 bullets', 'use British English'. "
-        "These cannot introduce new facts."
+        "- Candidate must belong to your org\n"
+        "- Candidate must have an approved profile\n"
+        "- Template must belong to your org and be active\n\n"
+        "**Output:** Both PDF and DOCX are generated. Poll GET /v1/generations/{id} "
+        "until status='complete', then use `output_document_url` (DOCX) and "
+        "`output_pdf_url` (PDF) to download."
     ),
 )
 async def create_generation(
     body: CreateGenerationRequest,
+    background_tasks: BackgroundTasks,
     user: CurrentUser,
     db: ScopedDB,
 ) -> GenerationResponse:
@@ -101,8 +92,7 @@ async def create_generation(
             Candidate.org_id == user.org_id,
         )
     )
-    candidate = candidate_result.scalar_one_or_none()
-    if not candidate:
+    if not candidate_result.scalar_one_or_none():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Candidate not found")
 
     # 2. Validate profile is approved
@@ -122,7 +112,7 @@ async def create_generation(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=(
                 "This candidate does not have an approved profile. "
-                "Review the extracted profile and approve it before generating a CV."
+                "Review and approve the extracted profile before generating a CV."
             ),
         )
 
@@ -134,8 +124,7 @@ async def create_generation(
             Template.is_active == True,  # noqa: E712
         )
     )
-    template = template_result.scalar_one_or_none()
-    if not template:
+    if not template_result.scalar_one_or_none():
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Template not found or not active",
@@ -152,19 +141,19 @@ async def create_generation(
         triggered_by=user.user_id,
     )
     db.add(generation)
-    await db.flush()  # get the id
+    await db.flush()
 
-    # 5. Enqueue render task (non-blocking)
-    render_task_run.delay(generation.id, user.org_id)
+    # 5. Start render in background (no Celery)
+    from app.pipeline.render import run_render
+    background_tasks.add_task(run_render, generation.id, user.org_id)
 
-    return _generation_to_response(generation)
+    return _to_response(generation)
 
 
 @router.get(
     "",
     response_model=GenerationListResponse,
     summary="List generations",
-    description="Returns all generations for the org, newest first.",
 )
 async def list_generations(
     user: CurrentUser,
@@ -174,7 +163,6 @@ async def list_generations(
     page_size: int = Query(20, ge=1, le=100),
 ) -> GenerationListResponse:
     query = select(Generation).where(Generation.org_id == user.org_id)
-
     if candidate_id:
         query = query.where(Generation.candidate_id == candidate_id)
 
@@ -186,10 +174,8 @@ async def list_generations(
         .offset((page - 1) * page_size)
         .limit(page_size)
     )
-    generations = result.scalars().all()
-
     return GenerationListResponse(
-        items=[_generation_to_response(g) for g in generations],
+        items=[_to_response(g) for g in result.scalars().all()],
         total=total,
         page=page,
         page_size=page_size,
@@ -201,9 +187,9 @@ async def list_generations(
     response_model=GenerationResponse,
     summary="Get generation status",
     description=(
-        "Poll this endpoint until `status = 'complete'`. "
-        "When complete, `output_document_url` contains a time-limited (1h) signed URL "
-        "to download the generated .docx file directly from object storage."
+        "Poll until `status = 'complete'`. On completion:\n"
+        "- `output_document_url` — time-limited URL to download the .docx file\n"
+        "- `output_pdf_url` — time-limited URL to download the .pdf file"
     ),
 )
 async def get_generation(
@@ -221,29 +207,42 @@ async def get_generation(
     if not generation:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Generation not found")
 
-    response = _generation_to_response(generation)
+    response = _to_response(generation)
 
-    # Generate a signed download URL if complete
-    if generation.status == "complete" and generation.output_document_id:
-        # Fetch the output document's storage_url
+    # Build signed URLs when complete
+    if generation.status == "complete":
         from app.models import Document
         from app.services.storage.object_store import get_object_store
 
-        doc_result = await db.execute(
-            select(Document).where(
-                Document.id == generation.output_document_id,
-                Document.org_id == user.org_id,
+        store = get_object_store()
+
+        # DOCX signed URL (from Document row)
+        if generation.output_document_id:
+            doc_result = await db.execute(
+                select(Document).where(
+                    Document.id == generation.output_document_id,
+                    Document.org_id == user.org_id,
+                )
             )
-        )
-        doc = doc_result.scalar_one_or_none()
-        if doc:
-            store = get_object_store()
-            response.output_document_url = await store.signed_url(doc.storage_url, expires_in=3600)
+            doc = doc_result.scalar_one_or_none()
+            if doc:
+                response.output_document_url = await store.signed_url(
+                    doc.storage_url, expires_in=3600
+                )
+
+        # PDF signed URL (stored directly on Generation)
+        if generation.output_pdf_url:
+            response.output_pdf_url = await store.signed_url(
+                generation.output_pdf_url, expires_in=3600
+            )
 
     return response
 
 
-def _generation_to_response(g: Generation) -> GenerationResponse:
+# ── Helper ────────────────────────────────────────────────────────────────────
+
+
+def _to_response(g: Generation) -> GenerationResponse:
     return GenerationResponse(
         id=g.id,
         candidate_id=g.candidate_id,
