@@ -38,11 +38,6 @@ class Settings(BaseSettings):
         "postgresql+psycopg2://cvplatform:cvplatform@localhost:5432/cvplatform"
     )
 
-    # ── Redis / Celery ─────────────────────────────────────────────────────
-    REDIS_URL: str = "redis://localhost:6379/0"
-    CELERY_BROKER_URL: str = "redis://localhost:6379/0"
-    CELERY_RESULT_BACKEND: str = "redis://localhost:6379/1"
-
     # ── AI Provider ────────────────────────────────────────────────────────
     ANTHROPIC_API_KEY: str = ""
     AI_DEFAULT_MODEL: str = "claude-sonnet-4-5"
@@ -51,12 +46,21 @@ class Settings(BaseSettings):
     GEMINI_MODEL: str = "gemini-2.5-flash"
 
     # ── Storage ────────────────────────────────────────────────────────────
-    STORAGE_BACKEND: Literal["local", "s3", "gcs"] = "local"
+    STORAGE_BACKEND: Literal["local", "s3", "r2"] = "local"
     LOCAL_STORAGE_PATH: str = "./uploads"
+
+    # AWS S3
     AWS_ACCESS_KEY_ID: str = ""
     AWS_SECRET_ACCESS_KEY: str = ""
     AWS_S3_BUCKET: str = "cv-platform-dev"
     AWS_S3_REGION: str = "us-east-1"
+
+    # Cloudflare R2 (S3-compatible)
+    R2_ACCOUNT_ID: str = ""
+    R2_ACCESS_KEY_ID: str = ""
+    R2_SECRET_ACCESS_KEY: str = ""
+    R2_BUCKET: str = "cvmorph"
+    R2_PUBLIC_URL: str = ""  # Optional: public URL prefix for direct access
 
     # ── Auth (JWT) ─────────────────────────────────────────────────────────
     JWT_ALGORITHM: str = "HS256"
@@ -67,21 +71,20 @@ class Settings(BaseSettings):
     SEED_ADMIN_EMAIL: str = "admin@copious.com"
     SEED_ADMIN_PASSWORD: str = "CHANGE_ME_on_first_login"
 
-    # ── Branding (PRD naming note — never hardcode product name in UI) ─────
+    # ── Branding ───────────────────────────────────────────────────────────
     BRAND_NAME: str = "CV Platform"
     BRAND_TAGLINE: str = "AI-powered CV transformation"
 
 
 @lru_cache
 def get_settings() -> Settings:
-    """Return a cached Settings instance (call this everywhere instead of Settings())."""
+    """Return a cached Settings instance."""
     return Settings()
 
 
-#: Module-level shortcut — `from app.core.config import settings`
+#: Module-level shortcut
 settings: Settings = get_settings()
 
-# Convenience: expose branding dict so it can be imported by templates etc.
 BRAND = {
     "name": settings.BRAND_NAME,
     "tagline": settings.BRAND_TAGLINE,
