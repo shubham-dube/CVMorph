@@ -15,13 +15,13 @@ from __future__ import annotations
 
 import io
 import logging
+import re
 from pathlib import Path
 from xml.sax.saxutils import escape as _xml_escape
 
-from docxtpl import DocxTemplate
+from docxtpl import DocxTemplate, RichText
 
 from app.schemas.candidate_profile import CandidateProfile
-from app.services.template_engine.richtext import to_richtext
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +48,6 @@ def render(template_path: str | Path, profile: CandidateProfile) -> bytes:
     tpl = DocxTemplate(str(template_path))
 
     # Build the context dict — mirrors the template placeholder names exactly.
-    # See docs/cv_schema_template_mapping.md §4 for the placeholder reference.
     context = _build_context(tpl, profile)
 
     try:
@@ -62,63 +61,95 @@ def render(template_path: str | Path, profile: CandidateProfile) -> bytes:
     return buffer.read()
 
 
+def _strip_bold(text: str) -> str:
+    """Remove **bold** markdown spans, returning plain text."""
+    return re.sub(r"\*\*(.+?)\*\*", r"\1", text or "")
+
+
+def _to_richtext(tpl: DocxTemplate, text: str | None) -> RichText:
+    """
+    Convert a markdown-lite string with **bold** spans into a docxtpl RichText object.
+    Use this ONLY for fields rendered with {{r variable}} in the template.
+    For plain {{ variable }} fields, use xs() instead.
+    """
+    rt = RichText()
+    if not text:
+        return rt
+
+    parts = re.split(r"(\*\*.+?\*\*)", text)
+    for part in parts:
+        if part.startswith("**") and part.endswith("**"):
+            rt.add(part[2:-2], bold=True)
+        elif part:
+            rt.add(part)
+    return rt
+
+
+def xs(text: str | None) -> str:
+    """
+    XML-safe plain string. Use for {{ variable }} placeholders in the template.
+    Also strips **bold** markdown since we can't bold plain-text placeholders.
+    """
+    if text is None:
+        return ""
+    return _xml_escape(_strip_bold(str(text)))
+
+
 def _build_context(tpl: DocxTemplate, profile: CandidateProfile) -> dict:
     """
     Build the Jinja2 context dict for docxtpl.
 
-    RichText conversion is applied here to all free-text fields that may contain
-    **bold** spans. Simple scalars are passed as strings.
+    IMPORTANT rules about data types:
+      - {{ variable }}   → must be a plain str (use xs())
+      - {{r variable }}  → must be a RichText object (use _to_richtext())
+      - list fields      → must stay as list[str], never pre-joined to a string
+                           (the template uses | join(", ") itself)
     """
 
-    def rt(text: str | None) -> object:
-        """Shorthand: convert to RichText, return empty RichText for None."""
-        return to_richtext(text or "")
-
-    def xs(text: str | None) -> str | None:
-        """
-        XML-safe escape for plain string values passed to the Jinja2 context.
-
-        docxtpl does NOT enable Jinja2 autoescape, so any raw '&', '<', or '>'
-        in a string will break lxml's XML parser when it tries to parse the
-        rendered document. This must be applied to every plain-string context
-        value. RichText objects handle their own escaping internally (xml_esc=True).
-        """
-        if text is None:
-            return None
-        return _xml_escape(str(text))
-
-    # Career summary bullets — convert each to RichText
+    # Career summary bullets — plain text strings (template uses {{ bullet.text }})
     summary_bullets = [
-        {"text": rt(b.text), "confidence": b.confidence, "source_type": b.source_type.value}
+        {
+            "text": xs(b.text),
+            "confidence": b.confidence,
+            "source_type": b.source_type.value,
+        }
         for b in profile.career_summary.bullets
     ]
 
-    # Technical skills — join skill list for the right column, then XML-escape
+    # Technical skills — skills stays as list[str] so template's | join(", ") works
     skill_groups = [
-        {"category": xs(g.category), "skills": xs(", ".join(g.skills))}
+        {
+            "category": xs(g.category),
+            "skills": [xs(s) for s in g.skills],  # list, NOT pre-joined string
+        }
         for g in profile.technical_skills.groups
     ]
 
-    # Education items — key renamed 'entries' to avoid collision with dict.items() method
+    # Education items — plain text strings
     education_items = [
-        {"text": rt(item.text), "type": item.type.value}
+        {
+            "text": xs(item.text),
+            "type": item.type.value,
+        }
         for item in profile.education.items
     ]
 
-    # Employment entries — plain strings XML-escaped; free-text fields use RichText
+    # Employment entries
     employment = []
     for job in profile.employment:
         employment.append(
             {
                 "company": xs(job.company),
-                "client": xs(job.client),
+                "client": xs(job.client) if job.client else None,
                 "role": xs(job.role),
                 "duration_display": xs(job.duration_display),
-                "project_name": xs(job.project_name),
-                "technology_used": xs(", ".join(job.technology_used)) if job.technology_used else None,
-                "project_description": rt(job.project_description) if job.project_description else None,
+                "project_name": xs(job.project_name) if job.project_name else None,
+                # technology_used stays as list[str] — template uses | join(", ")
+                "technology_used": [xs(t) for t in job.technology_used] if job.technology_used else [],
+                "project_description": xs(job.project_description) if job.project_description else None,
+                # responsibilities text as plain string — template uses {{ resp.text }}
                 "responsibilities": [
-                    {"text": rt(r.text)} for r in job.responsibilities
+                    {"text": xs(r.text)} for r in job.responsibilities
                 ],
             }
         )
