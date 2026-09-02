@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { Suspense, useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Sparkles, ArrowRight, ShieldCheck, Eye, Wand2 } from "lucide-react";
+import { Sparkles, ArrowRight, ShieldCheck, Eye, Wand2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth-context";
 import { BRAND } from "@/lib/branding";
@@ -16,7 +16,7 @@ const PITCH = [
   { icon: ShieldCheck, text: "Nothing goes to a client until a recruiter reviews and approves it." },
 ];
 
-export default function LoginPage() {
+function LoginForm() {
   const { login } = useAuth();
   const router = useRouter();
   const params = useSearchParams();
@@ -38,6 +38,37 @@ export default function LoginPage() {
     }
   }
 
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <label className="text-[13px] font-medium text-text-muted mb-1.5 block">Email</label>
+        <Input
+          type="email"
+          required
+          autoFocus
+          placeholder="you@company.com"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+        />
+      </div>
+      <div>
+        <label className="text-[13px] font-medium text-text-muted mb-1.5 block">Password</label>
+        <Input
+          type="password"
+          required
+          placeholder="••••••••"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+        />
+      </div>
+      <Button type="submit" className="w-full" size="lg" loading={loading}>
+        Sign in <ArrowRight className="h-4 w-4" />
+      </Button>
+    </form>
+  );
+}
+
+export default function LoginPage() {
   return (
     <div className="flex min-h-screen">
       {/* Brand panel */}
@@ -93,32 +124,15 @@ export default function LoginPage() {
             Welcome back — enter your details to continue.
           </p>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="text-[13px] font-medium text-text-muted mb-1.5 block">Email</label>
-              <Input
-                type="email"
-                required
-                autoFocus
-                placeholder="you@company.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="text-[13px] font-medium text-text-muted mb-1.5 block">Password</label>
-              <Input
-                type="password"
-                required
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            </div>
-            <Button type="submit" className="w-full" size="lg" loading={loading}>
-              Sign in <ArrowRight className="h-4 w-4" />
-            </Button>
-          </form>
+          <Suspense
+            fallback={
+              <div className="h-48 flex items-center justify-center">
+                <Loader2 className="h-6 w-6 animate-spin text-accent" />
+              </div>
+            }
+          >
+            <LoginForm />
+          </Suspense>
 
           <p className="text-xs text-text-faint mt-8 text-center">
             Google SSO is coming in a later release — see the platform roadmap.

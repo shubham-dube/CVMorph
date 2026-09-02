@@ -178,7 +178,7 @@ export default function GenerationDetailPage({ params }: { params: Promise<{ id:
                   )}
                   {gen.output_document_url && (
                     <a href={gen.output_document_url} download>
-                      <Button size="lg" variant={gen.output_pdf_url ? "secondary" : "default"} className="w-full sm:w-auto">
+                      <Button size="lg" variant={gen.output_pdf_url ? "secondary" : "primary"} className="w-full sm:w-auto">
                         <Download className="h-4 w-4" /> Download DOCX
                       </Button>
                     </a>
