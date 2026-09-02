@@ -27,6 +27,7 @@ COPY apps/api/pyproject.toml .
 ENV UV_PROJECT_ENVIRONMENT="/venv"
 RUN uv sync --no-dev
 ENV PATH="/venv/bin:$PATH"
+ENV PYTHONPATH="/app"
 
 # ── App source ────────────────────────────────────────────────────────────────
 COPY apps/api/ .

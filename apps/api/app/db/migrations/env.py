@@ -14,7 +14,13 @@ See the initial migration for the pattern.
 from __future__ import annotations
 
 import asyncio
+import os
+import sys
+from pathlib import Path
 from logging.config import fileConfig
+
+# Add app root to sys.path so 'app' can be imported anywhere alembic is run from
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from alembic import context
 from sqlalchemy import pool
