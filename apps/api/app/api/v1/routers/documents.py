@@ -179,7 +179,8 @@ async def upload_document(
             reference_id=doc_id,
         )
     )
-    await db.flush()
+    # Explicit commit before returning so BackgroundTasks can see the data
+    await db.commit()
 
     # ── Start pipeline in background (no Celery) ──────────────────────────────
     from app.pipeline.parse import run_parse

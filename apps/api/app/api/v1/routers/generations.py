@@ -141,7 +141,8 @@ async def create_generation(
         triggered_by=user.user_id,
     )
     db.add(generation)
-    await db.flush()
+    # Explicit commit before returning so BackgroundTasks can see the data
+    await db.commit()
 
     # 5. Start render in background (no Celery)
     from app.pipeline.render import run_render
