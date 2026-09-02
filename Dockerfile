@@ -3,25 +3,33 @@ FROM python:3.12-slim
 WORKDIR /app
 
 # ── System dependencies ────────────────────────────────────────────────────────
-# PyMuPDF     → libmupdf-dev, gcc
+# PyMuPDF     → gcc (for compilation)
 # xelatex     → texlive-xetex + fonts (for LaTeX template rendering)
-# LibreOffice → libreoffice-writer (for PDF↔DOCX conversion)
+# LibreOffice → for PDF↔DOCX conversion (DOCX templates → PDF)
 # poppler     → poppler-utils (PDF utilities)
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libmupdf-dev \
+# fonts       → common fonts for proper PDF rendering
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     gcc \
+    curl \
+    poppler-utils \
+    # LibreOffice (headless, for DOCX→PDF conversion)
+    libreoffice-writer \
+    libreoffice-calc \
+    libreoffice-common \
+    # Fonts needed for proper PDF rendering
+    fonts-liberation \
+    fonts-dejavu-core \
+    # texlive for LaTeX template rendering (optional — comment out to save space if not needed)
     texlive-xetex \
     texlive-latex-extra \
     texlive-fonts-recommended \
-    texlive-fonts-extra \
-    libreoffice-writer \
-    libreoffice-calc \
-    poppler-utils \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+# Verify LibreOffice installed correctly
+RUN libreoffice --version || (echo "ERROR: LibreOffice not found after install!" && exit 1)
 
 # ── Python dependencies ────────────────────────────────────────────────────────
-RUN pip install uv
+RUN pip install --no-cache-dir uv
 
 COPY apps/api/pyproject.toml .
 ENV UV_PROJECT_ENVIRONMENT="/venv"
@@ -32,8 +40,11 @@ ENV PYTHONPATH="/app"
 # ── App source ────────────────────────────────────────────────────────────────
 COPY apps/api/ .
 
-# ── LibreOffice user profile (needed for headless mode) ───────────────────────
-RUN mkdir -p /root/.config/libreoffice
+# ── LibreOffice user profile dir (needed for headless mode) ───────────────────
+RUN mkdir -p /root/.config/libreoffice /tmp/libreoffice-profile
+
+# Set LibreOffice to use a writable temp profile dir to avoid permission issues
+ENV SOFFICE_OPTS="--user-installation=/tmp/libreoffice-profile"
 
 EXPOSE 8000
 

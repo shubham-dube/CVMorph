@@ -23,10 +23,19 @@ logger = logging.getLogger(__name__)
 
 LIBREOFFICE_CMD = shutil.which("libreoffice") or shutil.which("soffice") or "libreoffice"
 
+# Writable user profile dir — avoids permission errors in headless/Docker mode
+_LO_PROFILE = "/tmp/libreoffice-profile"
+
 
 async def _run_libreoffice(*args: str, cwd: Path | None = None) -> None:
     """Run libreoffice as an async subprocess, raising ConversionError on failure."""
-    cmd = [LIBREOFFICE_CMD, "--headless", "--norestore", *args]
+    cmd = [
+        LIBREOFFICE_CMD,
+        "--headless",
+        "--norestore",
+        f"--env:UserInstallation=file://{_LO_PROFILE}",
+        *args,
+    ]
     logger.debug("converter: running %s", " ".join(cmd))
 
     proc = await asyncio.create_subprocess_exec(
