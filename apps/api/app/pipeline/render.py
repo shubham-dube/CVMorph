@@ -46,6 +46,7 @@ async def run_render(generation_id: str, org_id: str) -> None:
     Render a CV for the given generation_id.
     Produces both PDF and DOCX outputs, stored in object storage.
     """
+    import asyncio
     from sqlalchemy import select
 
     from app.models import (
@@ -61,21 +62,28 @@ async def run_render(generation_id: str, org_id: str) -> None:
 
     logger.info("render: started generation=%s org=%s", generation_id, org_id)
 
-    # ── 1. Mark as rendering ──────────────────────────────────────────────────
-    async with get_session_for_org(org_id) as db:
-        gen_result = await db.execute(
-            select(Generation).where(
-                Generation.id == generation_id,
-                Generation.org_id == org_id,
+    # ── 1. Fetch Generation with retries (parent transaction may not be committed yet) ──
+    generation: Generation | None = None
+    for attempt in range(5):
+        async with get_session_for_org(org_id) as db:
+            gen_result = await db.execute(
+                select(Generation).where(
+                    Generation.id == generation_id,
+                    Generation.org_id == org_id,
+                )
             )
-        )
-        generation: Generation | None = gen_result.scalar_one_or_none()
-        if not generation:
-            logger.error("render: Generation %s not found", generation_id)
-            return
+            generation = gen_result.scalar_one_or_none()
+            if generation is not None:
+                generation.status = "rendering"
+                await db.flush()
+                break
 
-        generation.status = "rendering"
-        await db.flush()
+        if attempt < 4:
+            await asyncio.sleep(0.5 * (attempt + 1))
+
+    if generation is None:
+        logger.error("render: Generation %s not found after retries", generation_id)
+        return
 
     try:
         async with get_session_for_org(org_id) as db:
