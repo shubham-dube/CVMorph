@@ -1,6 +1,5 @@
 services:
-  # ── PostgreSQL ────────────────────────────────────────────────────────────────
-  # Remove this service and update DATABASE_URL in .env when using Supabase.
+  # ── PostgreSQL (Local fallback — ignored when using Supabase in .env) ─────────
   postgres:
     image: postgres:16-alpine
     environment:
@@ -22,32 +21,16 @@ services:
   api:
     build:
       context: .
-      dockerfile: infra/docker/api.Dockerfile
+      dockerfile: Dockerfile
     ports:
       - "8000:8000"
-    environment:
-      - DATABASE_URL=postgresql+asyncpg://cvplatform:cvplatform@postgres:5432/cvplatform
-      - DATABASE_URL_SYNC=postgresql+psycopg2://cvplatform:cvplatform@postgres:5432/cvplatform
-      - SECRET_KEY=local-dev-secret-key-change-in-production
-      - DEBUG=true
-      - STORAGE_BACKEND=local
-      - LOCAL_STORAGE_PATH=/app/uploads
-      # Cloudflare R2 (optional — set these to switch from local storage):
-      # - STORAGE_BACKEND=r2
-      # - R2_ACCOUNT_ID=your_account_id
-      # - R2_ACCESS_KEY_ID=your_access_key
-      # - R2_SECRET_ACCESS_KEY=your_secret_key
-      # - R2_BUCKET=cvmorph
-      # - R2_PUBLIC_URL=https://pub-xxx.r2.dev
     env_file:
       - apps/api/.env
     volumes:
       - ./apps/api:/app
       - ./uploads:/app/uploads
-    depends_on:
-      postgres:
-        condition: service_healthy
-    command: uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    command: sh -c "uv run alembic upgrade head && uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
 
 volumes:
   postgres_data:
+

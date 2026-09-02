@@ -33,7 +33,7 @@ async def _run_libreoffice(*args: str, cwd: Path | None = None) -> None:
         LIBREOFFICE_CMD,
         "--headless",
         "--norestore",
-        f"--env:UserInstallation=file://{_LO_PROFILE}",
+        f"-env:UserInstallation=file://{_LO_PROFILE}",  # single dash, triple slash
         *args,
     ]
     logger.debug("converter: running %s", " ".join(cmd))
