@@ -96,8 +96,9 @@ async def get_scoped_session(
     """
     async with AsyncSessionLocal() as session:
         try:
+            # false = transaction-scoped (not session-scoped) — safe with PgBouncer
             await session.execute(
-                text("SELECT set_config('app.current_org_id', :org_id, true)"),
+                text("SELECT set_config('app.current_org_id', :org_id, false)"),
                 {"org_id": user.org_id},
             )
             yield session

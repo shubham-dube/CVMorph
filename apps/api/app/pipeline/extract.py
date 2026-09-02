@@ -1,14 +1,18 @@
 """
 Pipeline — AI extraction: raw_text → CandidateProfile stored in DB.
 
-Replaces the Celery extract_task. Runs inline after run_parse() completes.
+Runs inline after run_parse() completes — no task queue needed.
 
 Steps:
-  1. Mark document.parse_status = "extracting"
-  2. Call Gemini provider for structured profile extraction
+  1. Fetch document + mark parse_status = "extracting"
+  2. Call AI provider for structured profile extraction
   3. Validate the result
   4. Store CandidateProfile row with extraction_status = "ready_for_review"
   5. Update document.parse_status = "extracted"
+
+Design notes:
+  - Each DB mutation is a separate transaction, all within get_session_for_org.
+  - set_config is called at the start of every context — PgBouncer-safe.
 """
 
 from __future__ import annotations
@@ -35,7 +39,7 @@ async def run_extract(document_id: str, org_id: str) -> None:
 
     logger.info("extract: started document=%s org=%s", document_id, org_id)
 
-    # ── Fetch document + snapshot fields ─────────────────────────────────────
+    # ── Step 1: Fetch document + mark as extracting ────────────────────────────
     async with get_session_for_org(org_id) as db:
         result = await db.execute(
             select(Document).where(
@@ -51,6 +55,7 @@ async def run_extract(document_id: str, org_id: str) -> None:
             )
             return
 
+        # Snapshot fields before session closes
         raw_text = doc.raw_text
         candidate_id = doc.candidate_id
         extraction_instructions = doc.extraction_instructions
@@ -59,7 +64,7 @@ async def run_extract(document_id: str, org_id: str) -> None:
         await db.flush()
 
     try:
-        # ── Run AI extraction ─────────────────────────────────────────────────
+        # ── Step 2: Run AI extraction ─────────────────────────────────────────
         provider = get_provider()
         profile: CandidateProfile = await provider.extract(
             raw_text=raw_text,
@@ -69,7 +74,7 @@ async def run_extract(document_id: str, org_id: str) -> None:
             instructions=extraction_instructions,
         )
 
-        # ── Validate ──────────────────────────────────────────────────────────
+        # ── Step 3: Validate ──────────────────────────────────────────────────
         validation = validate(profile)
         if not validation.is_valid:
             error_summary = "; ".join(validation.errors[:3])
@@ -77,7 +82,7 @@ async def run_extract(document_id: str, org_id: str) -> None:
                 f"Extraction validation failed ({len(validation.errors)} errors): {error_summary}"
             )
 
-        # ── Store profile + update document ───────────────────────────────────
+        # ── Step 4: Store profile + update document (one transaction) ─────────
         profile_id = str(uuid.uuid4())
 
         async with get_session_for_org(org_id) as db:
@@ -113,17 +118,25 @@ async def run_extract(document_id: str, org_id: str) -> None:
 
     except Exception:
         logger.exception("extract: failed document=%s", document_id)
-        try:
-            async with get_session_for_org(org_id) as db:
-                result = await db.execute(
-                    select(Document).where(
-                        Document.id == document_id,
-                        Document.org_id == org_id,
-                    )
+        await _mark_extract_failed(document_id, org_id)
+
+
+async def _mark_extract_failed(document_id: str, org_id: str) -> None:
+    """Mark document as failed — isolated transaction."""
+    from sqlalchemy import select
+    from app.models import Document
+
+    try:
+        async with get_session_for_org(org_id) as db:
+            result = await db.execute(
+                select(Document).where(
+                    Document.id == document_id,
+                    Document.org_id == org_id,
                 )
-                doc = result.scalar_one_or_none()
-                if doc:
-                    doc.parse_status = "failed"
-                await db.flush()
-        except Exception:
-            logger.exception("extract: also failed to write failure status")
+            )
+            doc = result.scalar_one_or_none()
+            if doc:
+                doc.parse_status = "failed"
+            await db.flush()
+    except Exception:
+        logger.exception("extract: also failed to write failure status for %s", document_id)
