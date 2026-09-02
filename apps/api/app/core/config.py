@@ -28,7 +28,27 @@ class Settings(BaseSettings):
     DEBUG: bool = False
 
     # ── CORS ───────────────────────────────────────────────────────────────
-    CORS_ORIGINS: list[str] = ["http://localhost:3000"]
+    CORS_ORIGINS: list[str] | str = [
+        "http://localhost:3000",
+        "https://cvmorph-nu.vercel.app",
+    ]
+
+    @field_validator("CORS_ORIGINS", mode="before")
+    @classmethod
+    def assemble_cors_origins(cls, v: object) -> list[str]:
+        if isinstance(v, str):
+            if v.strip().startswith("[") and v.strip().endswith("]"):
+                try:
+                    import json
+                    parsed = json.loads(v)
+                    if isinstance(parsed, list):
+                        return [str(item).strip() for item in parsed]
+                except Exception:
+                    pass
+            return [origin.strip() for origin in v.split(",") if origin.strip()]
+        elif isinstance(v, (list, tuple)):
+            return [str(item).strip() for item in v]
+        return ["http://localhost:3000", "https://cvmorph-nu.vercel.app"]
 
     # ── Database ───────────────────────────────────────────────────────────
     DATABASE_URL: str = Field(
