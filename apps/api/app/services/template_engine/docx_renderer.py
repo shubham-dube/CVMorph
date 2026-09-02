@@ -106,10 +106,10 @@ def _build_context(tpl: DocxTemplate, profile: CandidateProfile) -> dict:
                            (the template uses | join(", ") itself)
     """
 
-    # Career summary bullets — plain text strings (template uses {{ bullet.text }})
+    # Career summary bullets — RichText objects (template uses {{r bullet.text }} with 'r' prefix)
     summary_bullets = [
         {
-            "text": xs(b.text),
+            "text": _to_richtext(tpl, b.text),
             "confidence": b.confidence,
             "source_type": b.source_type.value,
         }
@@ -125,7 +125,7 @@ def _build_context(tpl: DocxTemplate, profile: CandidateProfile) -> dict:
         for g in profile.technical_skills.groups
     ]
 
-    # Education items — plain text strings
+    # Education items — plain text strings (template uses {{ item.text }} plain, key is 'items' not 'entries')
     education_items = [
         {
             "text": xs(item.text),
@@ -163,7 +163,7 @@ def _build_context(tpl: DocxTemplate, profile: CandidateProfile) -> dict:
         "technical_skills": {"groups": skill_groups},
         "education": {
             "has_certifications": profile.education.has_certifications,
-            "entries": education_items,
+            "items": education_items,   # template uses .get("items") not .entries
         },
         "employment": employment,
     }
