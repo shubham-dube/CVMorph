@@ -34,7 +34,13 @@ class ObjectStore(ABC):
         ...
 
     @abstractmethod
-    async def signed_url(self, key: str, expires_in: int = 3600) -> str:
+    async def signed_url(
+        self,
+        key: str,
+        expires_in: int = 3600,
+        filename: str | None = None,
+        disposition: str = "attachment",
+    ) -> str:
         """Return a time-limited URL for downloading the object."""
         ...
 
@@ -69,7 +75,13 @@ class LocalObjectStore(ObjectStore):
         if path.exists():
             path.unlink()
 
-    async def signed_url(self, key: str, expires_in: int = 3600) -> str:
+    async def signed_url(
+        self,
+        key: str,
+        expires_in: int = 3600,
+        filename: str | None = None,
+        disposition: str = "attachment",
+    ) -> str:
         return f"file://{(self._root / key).resolve()}"
 
 
@@ -105,10 +117,25 @@ class S3ObjectStore(ObjectStore):
     async def delete(self, key: str) -> None:
         self._client.delete_object(Bucket=self._bucket, Key=key)
 
-    async def signed_url(self, key: str, expires_in: int = 3600) -> str:
+    async def signed_url(
+        self,
+        key: str,
+        expires_in: int = 3600,
+        filename: str | None = None,
+        disposition: str = "attachment",
+    ) -> str:
+        params: dict[str, str] = {"Bucket": self._bucket, "Key": key}
+        target_name = filename or key.split("/")[-1]
+        if target_name:
+            import re
+            from urllib.parse import quote
+            safe_ascii = re.sub(r'[^\w\-. ]', "_", target_name)
+            encoded = quote(target_name)
+            params["ResponseContentDisposition"] = f'{disposition}; filename="{safe_ascii}"; filename*=UTF-8\'\'{encoded}'
+
         return self._client.generate_presigned_url(
             "get_object",
-            Params={"Bucket": self._bucket, "Key": key},
+            Params=params,
             ExpiresIn=expires_in,
         )
 
@@ -163,15 +190,30 @@ class R2ObjectStore(ObjectStore):
     async def delete(self, key: str) -> None:
         self._client.delete_object(Bucket=self._bucket, Key=key)
 
-    async def signed_url(self, key: str, expires_in: int = 3600) -> str:
+    async def signed_url(
+        self,
+        key: str,
+        expires_in: int = 3600,
+        filename: str | None = None,
+        disposition: str = "attachment",
+    ) -> str:
         # If a public URL is configured (R2 bucket with public access), use that
         if self._public_url:
             return f"{self._public_url}/{key}"
 
+        params: dict[str, str] = {"Bucket": self._bucket, "Key": key}
+        target_name = filename or key.split("/")[-1]
+        if target_name:
+            import re
+            from urllib.parse import quote
+            safe_ascii = re.sub(r'[^\w\-. ]', "_", target_name)
+            encoded = quote(target_name)
+            params["ResponseContentDisposition"] = f'{disposition}; filename="{safe_ascii}"; filename*=UTF-8\'\'{encoded}'
+
         # Otherwise generate a presigned URL (works for private buckets)
         return self._client.generate_presigned_url(
             "get_object",
-            Params={"Bucket": self._bucket, "Key": key},
+            Params=params,
             ExpiresIn=expires_in,
         )
 

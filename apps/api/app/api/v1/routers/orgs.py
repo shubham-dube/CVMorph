@@ -45,6 +45,7 @@ class UsageSummaryResponse(BaseModel):
 
 
 class BrandingUpdateRequest(BaseModel):
+    naming_pattern: str | None = None
     logo_url: str | None = None
     primary_color: str | None = None
     secondary_color: str | None = None
@@ -67,6 +68,41 @@ async def get_my_org(user: CurrentUser, db: ScopedDB) -> OrgResponse:
     org = result.scalar_one_or_none()
     if not org:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Organisation not found")
+    return OrgResponse.model_validate(org)
+
+
+class OrgUpdateRequest(BaseModel):
+    name: str | None = None
+    naming_pattern: str | None = None
+
+
+@router.patch(
+    "/me",
+    response_model=OrgResponse,
+    summary="Update current organisation / workspace details",
+    description="Update organization name or global configurations.",
+)
+async def update_my_org(
+    body: OrgUpdateRequest,
+    user: AdminUser,
+    db: ScopedDB,
+) -> OrgResponse:
+    result = await db.execute(
+        select(Organization).where(Organization.id == user.org_id)
+    )
+    org = result.scalar_one_or_none()
+    if not org:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Organisation not found")
+
+    if body.name is not None and body.name.strip():
+        org.name = body.name.strip()
+
+    if body.naming_pattern is not None:
+        cfg = dict(org.branding_config or {})
+        cfg["naming_pattern"] = body.naming_pattern
+        org.branding_config = cfg
+
+    await db.commit()
     return OrgResponse.model_validate(org)
 
 
@@ -145,5 +181,5 @@ async def update_branding(
     current.update(update)
     org.branding_config = current
 
-    await db.flush()
+    await db.commit()
     return OrgResponse.model_validate(org)

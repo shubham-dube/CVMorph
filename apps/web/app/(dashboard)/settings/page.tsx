@@ -1,18 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   Building2,
-  Palette,
+  FileSignature,
   BarChart3,
   Save,
   Loader2,
-  Upload,
   TrendingUp,
   FileStack,
   FilePlus,
+  Upload,
+  Sparkles,
+  Check,
 } from "lucide-react";
 import { Topbar } from "@/components/layout/Topbar";
 import { Button } from "@/components/ui/Button";
@@ -20,7 +22,14 @@ import { Input } from "@/components/ui/Input";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { orgsApi, ApiError } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth-context";
-import type { OrgBranding } from "@/lib/types";
+
+const PRESETS = [
+  "Resume - {Name} - {Role}",
+  "CVMorph - {Name} - {Role}",
+  "CV - {Name} - {Role}",
+  "{Name} - {Role} - {Date}",
+  "{Name}_{Role}",
+];
 
 export default function SettingsPage() {
   const { user } = useAuth();
@@ -31,7 +40,7 @@ export default function SettingsPage() {
       <Topbar title="Settings" />
       <main className="flex-1 p-6 max-w-3xl w-full mx-auto space-y-8">
         <OrgSection />
-        {isAdmin && <BrandingSection />}
+        {isAdmin && <ResumeNamingSection />}
         <UsageSection />
       </main>
     </>
@@ -41,14 +50,30 @@ export default function SettingsPage() {
 // ── Org info ──────────────────────────────────────────────────────────────────
 
 function OrgSection() {
+  const queryClient = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: ["org"],
     queryFn: () => orgsApi.me(),
   });
 
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState("");
+
+  const nameMutation = useMutation({
+    mutationFn: (newName: string) => orgsApi.updateOrg({ name: newName }),
+    onSuccess: () => {
+      toast.success("Workspace name updated.");
+      queryClient.invalidateQueries({ queryKey: ["org"] });
+      setEditingName(false);
+    },
+    onError: (err) => {
+      toast.error(err instanceof ApiError ? err.message : "Couldn't update workspace name.");
+    },
+  });
+
   return (
     <section>
-      <SectionHeader icon={Building2} title="Organisation" />
+      <SectionHeader icon={Building2} title="Workspace & Organisation" />
       <div className="rounded-[var(--radius-lg)] border border-border bg-surface divide-y divide-border">
         {isLoading ? (
           <div className="px-5 py-4 space-y-2">
@@ -57,21 +82,63 @@ function OrgSection() {
           </div>
         ) : data ? (
           <>
-            <Row label="Name" value={data.name} />
-            <Row label="Plan" value={<PlanBadge tier={data.plan_tier} />} />
-            <Row label="Org ID" value={<span className="font-mono text-xs text-text-faint">{data.id}</span>} />
+            <div className="flex items-center justify-between px-5 py-3.5">
+              <span className="text-[13px] text-text-muted">Workspace Name</span>
+              {editingName ? (
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={nameDraft}
+                    onChange={(e) => setNameDraft(e.target.value)}
+                    className="h-8 text-xs max-w-xs"
+                    autoFocus
+                  />
+                  <Button
+                    size="sm"
+                    className="h-8 text-xs"
+                    disabled={nameMutation.isPending || !nameDraft.trim()}
+                    onClick={() => nameMutation.mutate(nameDraft.trim())}
+                  >
+                    Save
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-8 text-xs"
+                    onClick={() => setEditingName(false)}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2.5">
+                  <span className="text-[13px] font-semibold text-text">{data.name}</span>
+                  <button
+                    onClick={() => {
+                      setNameDraft(data.name);
+                      setEditingName(true);
+                    }}
+                    className="text-xs text-text-faint hover:text-text cursor-pointer p-1 rounded hover:bg-surface-hover transition-colors"
+                    title="Change workspace name"
+                  >
+                    Rename
+                  </button>
+                </div>
+              )}
+            </div>
+            <Row label="Plan Tier" value={<PlanBadge tier={data.plan_tier} />} />
+            <Row label="Tenant ID" value={<span className="font-mono text-xs text-text-faint">{data.id}</span>} />
           </>
         ) : (
-          <div className="px-5 py-4 text-sm text-text-muted">Couldn&apos;t load org info.</div>
+          <div className="px-5 py-4 text-sm text-text-muted">Couldn&apos;t load workspace info.</div>
         )}
       </div>
     </section>
   );
 }
 
-// ── Branding ──────────────────────────────────────────────────────────────────
+// ── Dynamic Resume Naming Convention ──────────────────────────────────────────
 
-function BrandingSection() {
+function ResumeNamingSection() {
   const queryClient = useQueryClient();
 
   const { data: org, isLoading } = useQuery({
@@ -79,86 +146,124 @@ function BrandingSection() {
     queryFn: () => orgsApi.me(),
   });
 
-  const [draft, setDraft] = useState<Partial<OrgBranding>>({});
-  const branding = { ...org?.branding_config, ...draft };
+  const [pattern, setPattern] = useState<string>("CVMorph - {Name} - {Role}");
+
+  useEffect(() => {
+    if (org?.branding_config?.naming_pattern) {
+      setPattern(org.branding_config.naming_pattern);
+    }
+  }, [org]);
 
   const mutation = useMutation({
-    mutationFn: () => orgsApi.updateBranding(draft),
+    mutationFn: () => orgsApi.updateBranding({ naming_pattern: pattern }),
     onSuccess: () => {
-      toast.success("Branding saved.");
+      toast.success("Resume naming convention saved.");
       queryClient.invalidateQueries({ queryKey: ["org"] });
-      setDraft({});
     },
     onError: (err) => {
-      toast.error(err instanceof ApiError ? err.message : "Couldn't save branding.");
+      toast.error(err instanceof ApiError ? err.message : "Couldn't save naming pattern.");
     },
   });
 
-  const isDirty = Object.keys(draft).length > 0;
+  // Calculate live preview example
+  const today = new Date().toISOString().split("T")[0];
+  const sampleName = "Shubham Dubey";
+  const sampleRole = "Software Engineer";
+  const previewFilename = pattern
+    .replace("{Name}", sampleName)
+    .replace("{Role}", sampleRole)
+    .replace("{Date}", today)
+    .replace("{OrgName}", org?.name || "CVMorph");
+
+  const isConfigDirty = Boolean(org?.branding_config && org.branding_config.naming_pattern !== pattern);
 
   return (
     <section>
-      <SectionHeader icon={Palette} title="Branding" subtitle="Admin only" />
+      <SectionHeader
+        icon={FileSignature}
+        title="Resume Naming Convention"
+        subtitle="Dynamic File Pattern"
+      />
       <div className="rounded-[var(--radius-lg)] border border-border bg-surface p-5 space-y-5">
         {isLoading ? (
           <div className="space-y-3">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <Skeleton key={i} className="h-9 w-full" />
-            ))}
+            <Skeleton className="h-9 w-full" />
+            <Skeleton className="h-9 w-full" />
           </div>
         ) : (
           <>
-            <Field label="Logo URL" hint="Direct URL to your company logo (PNG/SVG recommended)">
+            <div>
+              <label className="text-[13px] font-medium text-text mb-1 block">
+                Naming Pattern
+              </label>
+              <p className="text-xs text-text-muted mb-2.5">
+                Variables will be automatically replaced when compiling documents.
+              </p>
               <Input
-                placeholder="https://example.com/logo.png"
-                value={branding.logo_url ?? ""}
-                onChange={(e) => setDraft((d) => ({ ...d, logo_url: e.target.value || null }))}
+                value={pattern}
+                onChange={(e) => setPattern(e.target.value)}
+                placeholder="e.g. Resume - {Name} - {Role}"
+                className="font-mono text-xs"
               />
-            </Field>
-            <Field label="Primary colour" hint="Used for template accent colour (hex, e.g. #6d5bd0)">
-              <div className="flex items-center gap-3">
-                <input
-                  type="color"
-                  value={branding.primary_color ?? "#6d5bd0"}
-                  onChange={(e) => setDraft((d) => ({ ...d, primary_color: e.target.value }))}
-                  className="h-9 w-12 rounded-[var(--radius-sm)] border border-border bg-transparent cursor-pointer"
-                />
-                <Input
-                  placeholder="#6d5bd0"
-                  value={branding.primary_color ?? ""}
-                  onChange={(e) => setDraft((d) => ({ ...d, primary_color: e.target.value || null }))}
-                  className="flex-1"
-                />
-              </div>
-            </Field>
-            <Field label="Font" hint="Font name used in generated documents (e.g. Calibri, Arial)">
-              <Input
-                placeholder="Calibri"
-                value={branding.font ?? ""}
-                onChange={(e) => setDraft((d) => ({ ...d, font: e.target.value || null }))}
-              />
-            </Field>
+            </div>
 
-            {branding.logo_url && (
-              <div className="rounded-[var(--radius-md)] border border-border p-4 bg-surface-raised">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-text-faint mb-2">
-                  Logo preview
-                </p>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={branding.logo_url}
-                  alt="Logo preview"
-                  className="max-h-12 max-w-[180px] object-contain"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).style.display = "none";
-                  }}
-                />
+            {/* Quick preset selector */}
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-text-faint mb-2">
+                Suggested Presets
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {PRESETS.map((preset) => (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => setPattern(preset)}
+                    className={`px-2.5 py-1.5 rounded-[var(--radius-sm)] border text-xs font-mono transition-colors cursor-pointer ${
+                      pattern === preset
+                        ? "bg-accent text-white border-accent"
+                        : "bg-surface-raised border-border text-text-muted hover:text-text hover:border-border-strong"
+                    }`}
+                  >
+                    {preset}
+                  </button>
+                ))}
               </div>
-            )}
+            </div>
+
+            {/* Available variables */}
+            <div className="rounded-[var(--radius-md)] border border-border bg-surface-raised p-3.5 space-y-2 text-xs">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-text-faint block">
+                Available Tokens
+              </span>
+              <div className="grid grid-cols-2 gap-2 text-text-muted font-mono text-[11px]">
+                <div><code className="text-accent font-bold">{"{Name}"}</code> — Candidate Full Name</div>
+                <div><code className="text-accent font-bold">{"{Role}"}</code> — Target Job Role</div>
+                <div><code className="text-accent font-bold">{"{Date}"}</code> — Current Date (YYYY-MM-DD)</div>
+                <div><code className="text-accent font-bold">{"{OrgName}"}</code> — Workspace Name</div>
+              </div>
+            </div>
+
+            {/* Live Example Preview Box */}
+            <div className="rounded-[var(--radius-md)] border border-accent/30 bg-accent-soft p-4 space-y-1.5">
+              <div className="flex items-center gap-1.5 text-accent text-xs font-semibold">
+                <Sparkles className="h-3.5 w-3.5" />
+                Live Generated Filename Preview
+              </div>
+              <div className="font-mono text-xs text-text space-y-1 pt-1">
+                <p className="truncate">
+                  <span className="text-text-faint">DOCX: </span>
+                  <span className="font-medium text-text">{previewFilename}.docx</span>
+                </p>
+                <p className="truncate">
+                  <span className="text-text-faint">PDF: </span>
+                  <span className="font-medium text-text">{previewFilename}.pdf</span>
+                </p>
+              </div>
+            </div>
 
             <div className="flex justify-end pt-2">
               <Button
-                disabled={!isDirty || mutation.isPending}
+                disabled={mutation.isPending || !pattern.trim() || !isConfigDirty}
                 onClick={() => mutation.mutate()}
               >
                 {mutation.isPending ? (
@@ -166,7 +271,7 @@ function BrandingSection() {
                 ) : (
                   <Save className="h-4 w-4" />
                 )}
-                Save branding
+                Save Naming Convention
               </Button>
             </div>
           </>
@@ -189,7 +294,7 @@ function UsageSection() {
   return (
     <section>
       <div className="flex items-center justify-between mb-4">
-        <SectionHeader icon={BarChart3} title="Usage" className="mb-0" />
+        <SectionHeader icon={BarChart3} title="Usage & Analytics" className="mb-0" />
         <div className="flex items-center rounded-[var(--radius-sm)] border border-border overflow-hidden">
           {(["this_month", "all_time"] as const).map((p) => (
             <button
@@ -236,7 +341,6 @@ function UsageSection() {
         <TrendingUp className="h-4 w-4 text-accent mt-0.5 shrink-0" />
         <p className="text-[13px] text-text-muted">
           Usage data reflects {period === "this_month" ? "the current calendar month" : "all time"}.
-          Detailed per-recruiter analytics are planned for a future release.
         </p>
       </div>
     </section>
@@ -274,24 +378,6 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
     <div className="flex items-center justify-between px-5 py-3.5">
       <span className="text-[13px] text-text-muted">{label}</span>
       <span className="text-[13px] font-medium text-text">{value}</span>
-    </div>
-  );
-}
-
-function Field({
-  label,
-  hint,
-  children,
-}: {
-  label: string;
-  hint?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div>
-      <label className="text-[13px] font-medium text-text-muted mb-1 block">{label}</label>
-      {children}
-      {hint && <p className="text-xs text-text-faint mt-1">{hint}</p>}
     </div>
   );
 }

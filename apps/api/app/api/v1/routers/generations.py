@@ -45,7 +45,9 @@ class GenerationResponse(BaseModel):
     status: str
     formatting_instructions: str | None
     output_document_url: str | None = None   # DOCX download URL
-    output_pdf_url: str | None = None         # PDF download URL
+    output_pdf_url: str | None = None         # PDF view URL (inline)
+    output_pdf_download_url: str | None = None # PDF download URL (attachment)
+    output_filename: str | None = None       # Clean formatted title
     error_message: str | None
     created_at: datetime
     updated_at: datetime
@@ -116,11 +118,12 @@ async def create_generation(
             ),
         )
 
-    # 3. Validate template
+    # 3. Validate template (org template or system template)
+    from sqlalchemy import or_
     template_result = await db.execute(
         select(Template).where(
             Template.id == body.template_id,
-            Template.org_id == user.org_id,
+            or_(Template.org_id == user.org_id, Template.is_system == True),
             Template.is_active == True,  # noqa: E712
         )
     )
@@ -217,6 +220,7 @@ async def get_generation(
 
         store = get_object_store()
 
+        doc_filename: str | None = None
         # DOCX signed URL (from Document row)
         if generation.output_document_id:
             doc_result = await db.execute(
@@ -227,14 +231,35 @@ async def get_generation(
             )
             doc = doc_result.scalar_one_or_none()
             if doc:
+                doc_filename = doc.original_filename
                 response.output_document_url = await store.signed_url(
-                    doc.storage_url, expires_in=3600
+                    doc.storage_url,
+                    expires_in=3600,
+                    filename=doc.original_filename,
+                    disposition="attachment",
                 )
 
-        # PDF signed URL (stored directly on Generation)
+        if doc_filename:
+            response.output_filename = doc_filename.removesuffix(".docx")
+        elif generation.output_pdf_url:
+            response.output_filename = generation.output_pdf_url.split("/")[-1].removesuffix(".pdf")
+
+        # PDF signed URLs (stored directly on Generation)
         if generation.output_pdf_url:
+            pdf_filename = f"{response.output_filename}.pdf" if response.output_filename else None
+            # Inline URL for browser rendering / iframe
             response.output_pdf_url = await store.signed_url(
-                generation.output_pdf_url, expires_in=3600
+                generation.output_pdf_url,
+                expires_in=3600,
+                filename=pdf_filename,
+                disposition="inline",
+            )
+            # Attachment URL for direct download button
+            response.output_pdf_download_url = await store.signed_url(
+                generation.output_pdf_url,
+                expires_in=3600,
+                filename=pdf_filename,
+                disposition="attachment",
             )
 
     return response

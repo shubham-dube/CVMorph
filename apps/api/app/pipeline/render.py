@@ -106,10 +106,13 @@ async def run_render(generation_id: str, org_id: str) -> None:
             profile = CandidateProfile.model_validate(profile_row.profile_json)
 
             # ── 3. Fetch Template + file ───────────────────────────────────────
+            from sqlalchemy import or_
+            from app.models import Organization
+
             tpl_result = await db.execute(
                 select(Template).where(
                     Template.id == generation.template_id,
-                    Template.org_id == org_id,
+                    or_(Template.org_id == org_id, Template.is_system == True),
                 )
             )
             template: Template | None = tpl_result.scalar_one_or_none()
@@ -134,7 +137,27 @@ async def run_render(generation_id: str, org_id: str) -> None:
                 )
 
             # ── 5. Render to primary format ────────────────────────────────────
-            safe_name = re.sub(r"[^\w\-.]", "_", profile.candidate.full_name)
+            org_result = await db.execute(
+                select(Organization).where(Organization.id == org_id)
+            )
+            org_obj = org_result.scalar_one_or_none()
+            naming_pattern = "CVMorph - {Name} - {Role}"
+            if org_obj and org_obj.branding_config and isinstance(org_obj.branding_config, dict):
+                naming_pattern = org_obj.branding_config.get("naming_pattern") or naming_pattern
+
+            cand_name = profile.candidate.full_name or "Candidate"
+            cand_role = profile.candidate.role_title or "CV"
+            date_str = datetime.now(tz=timezone.utc).strftime("%Y-%m-%d")
+
+            formatted_title = (
+                naming_pattern.replace("{Name}", cand_name)
+                .replace("{Role}", cand_role)
+                .replace("{Date}", date_str)
+                .replace("{OrgName}", org_obj.name if org_obj else "CVMorph")
+            )
+            clean_filename = re.sub(r'[<>:"/\\|?*]', "_", formatted_title).strip() or f"{cand_name}_cv"
+            clean_filename = re.sub(r'\s+', ' ', clean_filename)
+            safe_key_name = re.sub(r'[^\w\-. ]', "_", clean_filename).strip() or "cv_output"
 
             with tempfile.TemporaryDirectory() as tmpdir:
                 tmpdir_path = Path(tmpdir)
@@ -150,8 +173,8 @@ async def run_render(generation_id: str, org_id: str) -> None:
                     )
 
             # ── 6. Upload both outputs ─────────────────────────────────────────
-            docx_key = f"{org_id}/generated/{generation_id}/{safe_name}_cv.docx"
-            pdf_key = f"{org_id}/generated/{generation_id}/{safe_name}_cv.pdf"
+            docx_key = f"{org_id}/generated/{generation_id}/{safe_key_name}.docx"
+            pdf_key = f"{org_id}/generated/{generation_id}/{safe_key_name}.pdf"
 
             await store.put(
                 docx_key,
@@ -170,7 +193,7 @@ async def run_render(generation_id: str, org_id: str) -> None:
                 org_id=org_id,
                 candidate_id=generation.candidate_id,
                 type="generated",
-                original_filename=f"{safe_name}_cv.docx",
+                original_filename=f"{clean_filename}.docx",
                 mime_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                 storage_url=docx_key,
                 file_size_bytes=len(docx_bytes),

@@ -169,15 +169,21 @@ export default function GenerationDetailPage({ params }: { params: Promise<{ id:
               </p>
               {gen.output_document_url || gen.output_pdf_url ? (
                 <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-                  {gen.output_pdf_url && (
-                    <a href={gen.output_pdf_url} download>
+                  {(gen.output_pdf_download_url || gen.output_pdf_url) && (
+                    <a
+                      href={gen.output_pdf_download_url || gen.output_pdf_url!}
+                      download={`${gen.output_filename || 'Resume'}.pdf`}
+                    >
                       <Button size="lg" className="w-full sm:w-auto">
                         <Download className="h-4 w-4" /> Download PDF
                       </Button>
                     </a>
                   )}
                   {gen.output_document_url && (
-                    <a href={gen.output_document_url} download>
+                    <a
+                      href={gen.output_document_url}
+                      download={`${gen.output_filename || 'Resume'}.docx`}
+                    >
                       <Button size="lg" variant={gen.output_pdf_url ? "secondary" : "primary"} className="w-full sm:w-auto">
                         <Download className="h-4 w-4" /> Download DOCX
                       </Button>

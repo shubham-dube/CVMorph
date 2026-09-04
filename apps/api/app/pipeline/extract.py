@@ -107,6 +107,20 @@ async def run_extract(document_id: str, org_id: str) -> None:
             )
             doc = doc_result.scalar_one()
             doc.parse_status = "extracted"
+
+            # Update candidate name from extracted resume full name
+            if profile.candidate and profile.candidate.full_name:
+                from app.models import Candidate
+                cand_result = await db.execute(
+                    select(Candidate).where(
+                        Candidate.id == candidate_id,
+                        Candidate.org_id == org_id,
+                    )
+                )
+                cand = cand_result.scalar_one_or_none()
+                if cand:
+                    cand.name = profile.candidate.full_name.strip()
+
             await db.flush()
 
         logger.info(

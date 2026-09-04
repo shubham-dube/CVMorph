@@ -47,6 +47,8 @@ class CandidateResponse(BaseModel):
     id: str
     org_id: str
     name: str
+    role_title: str | None = None
+    extraction_status: str | None = None
     master_profile_id: str | None
     created_at: datetime
     updated_at: datetime
@@ -215,8 +217,25 @@ async def list_candidates(
     )
     candidates = result.scalars().all()
 
+    items: list[CandidateResponse] = []
+    for c in candidates:
+        cr = CandidateResponse.model_validate(c)
+        prof_res = await db.execute(
+            select(CandidateProfileModel.profile_json, CandidateProfileModel.extraction_status)
+            .where(CandidateProfileModel.candidate_id == c.id)
+            .order_by(CandidateProfileModel.created_at.desc())
+            .limit(1)
+        )
+        prof_row = prof_res.first()
+        if prof_row:
+            p_json, ext_status = prof_row
+            cr.extraction_status = ext_status
+            if isinstance(p_json, dict) and "candidate" in p_json:
+                cr.role_title = p_json["candidate"].get("role_title")
+        items.append(cr)
+
     return CandidateListResponse(
-        items=[CandidateResponse.model_validate(c) for c in candidates],
+        items=items,
         total=total,
         page=page,
         page_size=page_size,
@@ -321,12 +340,6 @@ async def patch_profile(
     await _get_candidate_or_404(candidate_id, user.org_id, db)
     profile_row = await _get_latest_profile_or_404(candidate_id, user.org_id, db)
 
-    if profile_row.extraction_status == "approved":
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Profile is already approved. Create a new generation to make further changes.",
-        )
-
     # Write the review event (immutable audit trail)
     event = ReviewEvent(
         org_id=user.org_id,
@@ -343,7 +356,16 @@ async def patch_profile(
     updated_json = body.profile.model_dump(mode="json")
     profile_row.profile_json = updated_json
 
-    await db.flush()
+    # Also update candidate's name if edited in the profile
+    if body.profile.candidate and body.profile.candidate.full_name:
+        cand_res = await db.execute(
+            select(Candidate).where(Candidate.id == candidate_id, Candidate.org_id == user.org_id)
+        )
+        cand_obj = cand_res.scalar_one_or_none()
+        if cand_obj:
+            cand_obj.name = body.profile.candidate.full_name.strip()
+
+    await db.commit()
 
     return ProfileResponse(
         profile_id=profile_row.id,
@@ -389,8 +411,9 @@ async def approve_profile(
     profile = CandidateProfile.model_validate(profile_row.profile_json)
     flagged_paths = _collect_low_confidence_paths(profile)
 
+    # Check low-confidence paths for warning message (do not block)
+    warning_note = ""
     if flagged_paths:
-        # Check which ones have been reviewed
         reviewed_result = await db.execute(
             select(ReviewEvent.field_path)
             .where(
@@ -403,14 +426,7 @@ async def approve_profile(
         unreviewed = [p for p in flagged_paths if p not in reviewed_paths]
 
         if unreviewed:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail={
-                    "message": "Some low-confidence fields have not been reviewed.",
-                    "unreviewed_paths": unreviewed,
-                    "tip": "Confirm, edit, or remove each field listed above, then retry approval.",
-                },
-            )
+            warning_note = f" Approved with {len(unreviewed)} low-confidence item(s) unreviewed."
 
     from datetime import datetime, timezone
 
@@ -423,13 +439,13 @@ async def approve_profile(
     candidate = await _get_candidate_or_404(candidate_id, user.org_id, db)
     candidate.master_profile_id = profile_row.id
 
-    await db.flush()
+    await db.commit()
 
     return ApproveResponse(
         status="approved",
         profile_id=profile_row.id,
         approved_at=now.isoformat(),
-        message="Profile approved. You can now generate a formatted CV.",
+        message=f"Profile approved.{warning_note}",
     )
 
 

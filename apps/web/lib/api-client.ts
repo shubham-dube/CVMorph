@@ -99,6 +99,11 @@ export const authApi = {
       method: "POST",
       body: JSON.stringify({ email, password }),
     }),
+  googleLogin: (idToken: string, email?: string, name?: string, photoUrl?: string) =>
+    request<TokenResponse>("/auth/google", {
+      method: "POST",
+      body: JSON.stringify({ id_token: idToken, email, name, photo_url: photoUrl }),
+    }),
   me: () => request<UserResponse>("/auth/me"),
 };
 
@@ -241,6 +246,8 @@ export const templatesApi = {
   update: (id: string, body: Partial<Pick<TemplateResponse, "name" | "description" | "config_json">>) =>
     request<TemplateResponse>(`/templates/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
   remove: (id: string) => request<void>(`/templates/${id}`, { method: "DELETE" }),
+  getDownloadUrl: (id: string) =>
+    request<{ download_url: string; name: string; template_type: string }>(`/templates/${id}/download`),
 };
 
 // ── Orgs ─────────────────────────────────────────────────────────────────────
@@ -249,6 +256,8 @@ export const orgsApi = {
   me: () => request<OrgResponse>("/orgs/me"),
   usage: (period: "all_time" | "this_month" = "all_time") =>
     request<UsageSummaryResponse>(`/orgs/me/usage?period=${period}`),
+  updateOrg: (body: { name?: string; naming_pattern?: string }) =>
+    request<OrgResponse>("/orgs/me", { method: "PATCH", body: JSON.stringify(body) }),
   updateBranding: (branding: Partial<OrgBranding>) =>
     request<OrgResponse>("/orgs/me/branding", { method: "PATCH", body: JSON.stringify(branding) }),
 };

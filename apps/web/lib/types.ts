@@ -148,6 +148,8 @@ export interface CandidateResponse {
   id: string;
   org_id: string;
   name: string;
+  role_title?: string | null;
+  extraction_status?: string | null;
   master_profile_id: string | null;
   created_at: string;
   updated_at: string;
@@ -222,8 +224,10 @@ export interface GenerationResponse {
   profile_id: string;
   status: GenerationStatus;
   formatting_instructions: string | null;
-  output_document_url: string | null;  // DOCX download URL
-  output_pdf_url: string | null;        // PDF download URL
+  output_document_url: string | null;          // DOCX download URL
+  output_pdf_url: string | null;               // PDF view URL (inline)
+  output_pdf_download_url?: string | null;     // PDF download URL (attachment)
+  output_filename?: string | null;             // Formatted filename without extension
   error_message: string | null;
   created_at: string;
   updated_at: string;
@@ -244,15 +248,18 @@ export interface TemplateResponse {
   config_json: { sections?: string[]; required_fields?: string[]; [k: string]: unknown };
   template_type: "docx" | "latex";  // "docx" | "latex"
   is_active: boolean;
+  is_system?: boolean;
   created_at: string;
   updated_at: string;
 }
 
 export interface OrgBranding {
+  naming_pattern?: string | null;
   logo_url: string | null;
   primary_color: string | null;
   secondary_color: string | null;
   font: string | null;
+  [k: string]: unknown;
 }
 
 export interface OrgResponse {
