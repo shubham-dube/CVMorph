@@ -273,6 +273,7 @@ class Template(Base):
         String(10), nullable=False, default="docx"
     )  # "docx" | "latex"
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    is_system: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_by: Mapped[str | None] = mapped_column(
         UUID(as_uuid=False), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
