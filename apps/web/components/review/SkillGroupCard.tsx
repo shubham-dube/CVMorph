@@ -113,7 +113,7 @@ export function SkillGroupCard({
     >
       <div className="flex items-center justify-between gap-2 mb-2">
         <h4 className="text-[13px] font-semibold text-text">{category}</h4>
-        <ConfidenceBadge confidence={confidence} showValue={false} />
+        <ConfidenceBadge confidence={confidence} showValue={false} onlyLow />
       </div>
       <div className="flex flex-wrap gap-1.5">
         {skills.map((s, i) => (

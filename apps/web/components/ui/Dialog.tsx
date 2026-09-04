@@ -52,18 +52,18 @@ export function DialogContent({ children, className }: { children: ReactNode; cl
   return <div className={cn("p-6", className)}>{children}</div>;
 }
 
-export function DialogHeader({ children }: { children: ReactNode }) {
+export function DialogHeader({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <div className="flex items-start justify-between gap-4">
+    <div className={cn("flex items-start justify-between gap-4", className)}>
       <div className="flex-1">{children}</div>
     </div>
   );
 }
 
-export function DialogTitle({ children }: { children: ReactNode }) {
-  return <h2 className="text-base font-semibold text-text">{children}</h2>;
+export function DialogTitle({ children, className }: { children: ReactNode; className?: string }) {
+  return <h2 className={cn("text-base font-semibold text-text", className)}>{children}</h2>;
 }
 
-export function DialogDescription({ children }: { children: ReactNode }) {
-  return <p className="text-sm text-text-muted mt-1">{children}</p>;
+export function DialogDescription({ children, className }: { children: ReactNode; className?: string }) {
+  return <p className={cn("text-sm text-text-muted mt-1", className)}>{children}</p>;
 }

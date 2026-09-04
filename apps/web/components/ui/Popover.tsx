@@ -9,14 +9,16 @@ interface PopoverProps {
   children: ReactNode;
   align?: "start" | "end" | "center";
   className?: string;
+  openOnHover?: boolean;
 }
 
-/** Lightweight, dependency-free popover — click trigger to open, click outside/Escape to close. */
-export function Popover({ trigger, children, align = "start", className }: PopoverProps) {
+/** Lightweight, dependency-free popover — click/hover trigger to open, click outside/Escape to close. */
+export function Popover({ trigger, children, align = "start", className, openOnHover = false }: PopoverProps) {
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   const triggerRef = useRef<HTMLDivElement>(null);
   const popRef = useRef<HTMLDivElement>(null);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     function onDocClick(e: MouseEvent) {
@@ -40,7 +42,7 @@ export function Popover({ trigger, children, align = "start", className }: Popov
     };
   }, [open]);
 
-  function handleOpen() {
+  function calculatePos() {
     const rect = triggerRef.current?.getBoundingClientRect();
     if (rect) {
       setPos({
@@ -48,12 +50,36 @@ export function Popover({ trigger, children, align = "start", className }: Popov
         left: align === "end" ? rect.right + window.scrollX : rect.left + window.scrollX,
       });
     }
+  }
+
+  function handleOpen() {
+    calculatePos();
     setOpen((o) => !o);
+  }
+
+  function handleMouseEnter() {
+    if (!openOnHover) return;
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    calculatePos();
+    setOpen(true);
+  }
+
+  function handleMouseLeave() {
+    if (!openOnHover) return;
+    timeoutRef.current = setTimeout(() => {
+      setOpen(false);
+    }, 180);
   }
 
   return (
     <>
-      <div ref={triggerRef} onClick={handleOpen} className="inline-flex">
+      <div
+        ref={triggerRef}
+        onClick={handleOpen}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+        className="inline-flex cursor-pointer"
+      >
         {trigger}
       </div>
       {open &&

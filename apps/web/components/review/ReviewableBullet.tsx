@@ -126,7 +126,7 @@ export function ReviewableBullet({
           showAffordances ? "opacity-100" : "opacity-0 group-hover:opacity-100"
         )}
       >
-        <ConfidenceBadge confidence={confidence} />
+        <ConfidenceBadge confidence={confidence} onlyLow />
         <EvidencePopover evidence={evidence} sourceType={sourceType} />
         <span className="flex-1" />
         {reviewed && needsReview(confidence) && (

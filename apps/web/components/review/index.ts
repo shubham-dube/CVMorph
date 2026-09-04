@@ -4,3 +4,4 @@ export { ReviewableBullet } from "./ReviewableBullet";
 export { SkillGroupCard } from "./SkillGroupCard";
 export { EmploymentEntryCard } from "./EmploymentEntryCard";
 export { ApproveBar } from "./ApproveBar";
+export { PreviewPanel } from "./PreviewPanel";

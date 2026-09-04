@@ -28,6 +28,7 @@ export function EvidencePopover({ evidence, sourceType }: { evidence: string | n
 
   return (
     <Popover
+      openOnHover
       trigger={
         <button className="inline-flex items-center gap-1 text-[11px] text-accent hover:underline underline-offset-2 decoration-dotted">
           <Quote className="h-3 w-3" />
