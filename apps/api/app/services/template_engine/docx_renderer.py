@@ -109,7 +109,7 @@ def _build_context(tpl: DocxTemplate, profile: CandidateProfile) -> dict:
     # Career summary bullets — RichText objects (template uses {{r bullet.text }} with 'r' prefix)
     summary_bullets = [
         {
-            "text": _to_richtext(tpl, b.text),
+            "text": xs(b.text),
             "confidence": b.confidence,
             "source_type": b.source_type.value,
         }

@@ -11,6 +11,13 @@ import {
   Loader2,
   UploadCloud,
   X,
+  Lock,
+  Pencil,
+  Eye,
+  Download,
+  CheckCircle2,
+  Info,
+  Sparkles,
 } from "lucide-react";
 import { Topbar } from "@/components/layout/Topbar";
 import { Button } from "@/components/ui/Button";
@@ -21,6 +28,7 @@ import { Input, Textarea } from "@/components/ui/Input";
 import { templatesApi, ApiError } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth-context";
 import { formatDateTime } from "@/lib/utils";
+import type { TemplateResponse } from "@/lib/types";
 
 export default function TemplatesPage() {
   const { user } = useAuth();
@@ -29,28 +37,32 @@ export default function TemplatesPage() {
 
   const [uploadOpen, setUploadOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [editTemplate, setEditTemplate] = useState<TemplateResponse | null>(null);
+  const [previewTemplate, setPreviewTemplate] = useState<TemplateResponse | null>(null);
 
   const { data: templates, isLoading, isError } = useQuery({
     queryKey: ["templates"],
     queryFn: () => templatesApi.list(),
   });
 
-  const active = templates?.filter((t) => t.is_active) ?? [];
-  const inactive = templates?.filter((t) => !t.is_active) ?? [];
+  const systemTemplates = templates?.filter((t) => t.is_system) ?? [];
+  const customTemplates = templates?.filter((t) => !t.is_system && t.is_active) ?? [];
 
   return (
     <>
-      <Topbar title="Templates" />
-      <main className="flex-1 p-6 max-w-5xl w-full mx-auto">
-        <div className="flex items-center justify-between mb-6">
-          <p className="text-sm text-text-muted">
-            {templates
-              ? `${active.length} active template${active.length === 1 ? "" : "s"}`
-              : ""}
-          </p>
+      <Topbar title="Template Library" />
+      <main className="flex-1 p-6 max-w-5xl w-full mx-auto space-y-8">
+        {/* Header summary & action */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h2 className="text-xl font-bold tracking-tight text-text">Templates</h2>
+            <p className="text-xs text-text-muted mt-0.5">
+              Manage system templates and custom company layouts for DOCX and XeLaTeX output.
+            </p>
+          </div>
           {isAdmin && (
-            <Button size="sm" onClick={() => setUploadOpen(true)}>
-              <Plus className="h-3.5 w-3.5" /> Upload template
+            <Button size="sm" onClick={() => setUploadOpen(true)} className="self-start sm:self-auto">
+              <Plus className="h-3.5 w-3.5" /> Upload Template
             </Button>
           )}
         </div>
@@ -70,53 +82,76 @@ export default function TemplatesPage() {
           />
         )}
 
-        {templates && templates.length === 0 && (
-          <EmptyState
-            icon={<LayoutTemplate className="h-8 w-8" />}
-            title="No templates yet"
-            description={
-              isAdmin
-                ? "Upload a .docx or .tex.j2 template file to get started."
-                : "Ask your admin to upload a template."
-            }
-            action={
-              isAdmin ? (
-                <Button size="sm" onClick={() => setUploadOpen(true)}>
-                  <Plus className="h-3.5 w-3.5" /> Upload template
+        {/* System Templates Section */}
+        {systemTemplates.length > 0 && (
+          <section className="space-y-3">
+            <div className="flex items-center gap-2">
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-accent-soft text-accent">
+                <Sparkles className="h-3 w-3" />
+              </span>
+              <h3 className="text-xs font-bold uppercase tracking-wider text-text-faint">
+                System Templates (Built-in Library)
+              </h3>
+            </div>
+            <p className="text-xs text-text-muted">
+              Pre-configured, battle-tested templates guaranteed to render pixel-perfect DOCX and PDF documents.
+            </p>
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-1">
+              {systemTemplates.map((t) => (
+                <TemplateCard
+                  key={t.id}
+                  template={t}
+                  isAdmin={isAdmin}
+                  onPreview={() => setPreviewTemplate(t)}
+                  onEdit={() => {}}
+                  onDelete={() => {}}
+                />
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Custom Organization Templates */}
+        <section className="space-y-3 pt-4 border-t border-border/70">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-text-faint">
+                Custom Organization Templates
+              </h3>
+              <span className="text-[11px] font-mono text-text-muted">({customTemplates.length})</span>
+            </div>
+          </div>
+
+          {customTemplates.length === 0 ? (
+            <div className="rounded-[var(--radius-lg)] border border-dashed border-border p-8 text-center space-y-3 bg-surface/40">
+              <LayoutTemplate className="h-8 w-8 text-text-faint mx-auto" />
+              <div>
+                <p className="text-sm font-semibold text-text">No custom templates yet</p>
+                <p className="text-xs text-text-muted mt-1 max-w-sm mx-auto">
+                  Upload your agency or company .docx template with docxtpl placeholders to start formatting into your own branding.
+                </p>
+              </div>
+              {isAdmin && (
+                <Button size="sm" variant="secondary" onClick={() => setUploadOpen(true)}>
+                  <Plus className="h-3.5 w-3.5" /> Upload custom template
                 </Button>
-              ) : undefined
-            }
-          />
-        )}
-
-        {/* Active templates grid */}
-        {active.length > 0 && (
-          <section className="mb-8">
-            <h3 className="text-[11px] font-semibold uppercase tracking-wide text-text-faint mb-4">
-              Active templates
-            </h3>
-            <TemplateGrid
-              templates={active}
-              isAdmin={isAdmin}
-              onDelete={(id) => setDeleteId(id)}
-            />
-          </section>
-        )}
-
-        {/* Inactive templates */}
-        {isAdmin && inactive.length > 0 && (
-          <section>
-            <h3 className="text-[11px] font-semibold uppercase tracking-wide text-text-faint mb-4">
-              Inactive templates
-            </h3>
-            <TemplateGrid
-              templates={inactive}
-              isAdmin={isAdmin}
-              onDelete={(id) => setDeleteId(id)}
-              dimmed
-            />
-          </section>
-        )}
+              )}
+            </div>
+          ) : (
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {customTemplates.map((t) => (
+                <TemplateCard
+                  key={t.id}
+                  template={t}
+                  isAdmin={isAdmin}
+                  onPreview={() => setPreviewTemplate(t)}
+                  onEdit={() => setEditTemplate(t)}
+                  onDelete={() => setDeleteId(t.id)}
+                />
+              ))}
+            </div>
+          )}
+        </section>
       </main>
 
       {/* Upload dialog */}
@@ -127,6 +162,22 @@ export default function TemplatesPage() {
           queryClient.invalidateQueries({ queryKey: ["templates"] });
           setUploadOpen(false);
         }}
+      />
+
+      {/* Edit Template dialog */}
+      <EditTemplateDialog
+        template={editTemplate}
+        onClose={() => setEditTemplate(null)}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ["templates"] });
+          setEditTemplate(null);
+        }}
+      />
+
+      {/* Preview modal */}
+      <PreviewTemplateModal
+        template={previewTemplate}
+        onClose={() => setPreviewTemplate(null)}
       />
 
       {/* Delete confirm dialog */}
@@ -142,76 +193,81 @@ export default function TemplatesPage() {
   );
 }
 
-// ── Template grid ─────────────────────────────────────────────────────────────
+// ── Template Card ─────────────────────────────────────────────────────────────
 
-function TemplateGrid({
-  templates,
+function TemplateCard({
+  template,
   isAdmin,
+  onPreview,
+  onEdit,
   onDelete,
-  dimmed = false,
 }: {
-  templates: Awaited<ReturnType<typeof templatesApi.list>>;
+  template: TemplateResponse;
   isAdmin: boolean;
-  onDelete: (id: string) => void;
-  dimmed?: boolean;
+  onPreview: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
 }) {
+  const sections: string[] = template.config_json?.sections ?? [];
+
   return (
-    <div className={`grid sm:grid-cols-2 lg:grid-cols-3 gap-4 ${dimmed ? "opacity-50" : ""}`}>
-      {templates.map((t) => {
-        const sections: string[] = t.config_json?.sections ?? [];
-        return (
-          <div
-            key={t.id}
-            className="relative rounded-[var(--radius-lg)] border border-border bg-surface p-5 flex flex-col gap-3 group"
-          >
-            <div className="flex items-start justify-between">
-              <div className="flex h-10 w-10 items-center justify-center rounded-[9px] bg-accent-soft border border-accent/20">
-                <FileText className="h-5 w-5 text-accent" />
-              </div>
-              {isAdmin && (
+    <div className="relative rounded-[var(--radius-lg)] border border-border bg-surface p-5 flex flex-col gap-3 group hover:border-border-strong hover:shadow-sm transition-all">
+      <div className="flex items-start justify-between">
+        <div className="flex h-10 w-10 items-center justify-center rounded-[9px] bg-accent-soft border border-accent/20">
+          <FileText className="h-5 w-5 text-accent" />
+        </div>
+
+        <div className="flex items-center gap-1">
+          {template.is_system ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-surface-raised border border-border px-2 py-0.5 text-[10px] font-semibold text-accent">
+              <Lock className="h-2.5 w-2.5" /> System Library
+            </span>
+          ) : (
+            isAdmin && (
+              <>
                 <button
-                  onClick={() => onDelete(t.id)}
+                  onClick={onEdit}
+                  className="opacity-0 group-hover:opacity-100 flex h-7 w-7 items-center justify-center rounded-[var(--radius-sm)] text-text-faint hover:text-text hover:bg-surface-hover transition-all"
+                  title="Edit template name & description"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  onClick={onDelete}
                   className="opacity-0 group-hover:opacity-100 flex h-7 w-7 items-center justify-center rounded-[var(--radius-sm)] text-text-faint hover:text-danger hover:bg-danger-soft transition-all"
                   title="Delete template"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
-              )}
-            </div>
-            <div>
-              <div className="flex items-center gap-2 mb-0.5">
-                <p className="text-[14px] font-semibold text-text">{t.name}</p>
-                <span className="rounded-[var(--radius-sm)] border border-border bg-surface-raised px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-text-muted">
-                  {t.template_type}
-                </span>
-              </div>
-              {t.description && (
-                <p className="text-xs text-text-muted line-clamp-2">{t.description}</p>
-              )}
-            </div>
-            {sections.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mt-auto">
-                {sections.slice(0, 4).map((s) => (
-                  <span
-                    key={s}
-                    className="inline-flex items-center rounded-full border border-border px-2 py-0.5 text-[10px] font-medium text-text-faint"
-                  >
-                    {s}
-                  </span>
-                ))}
-                {sections.length > 4 && (
-                  <span className="text-[10px] text-text-faint self-center">
-                    +{sections.length - 4} more
-                  </span>
-                )}
-              </div>
-            )}
-            <p className="text-[11px] text-text-faint border-t border-border pt-3 mt-auto">
-              Added {formatDateTime(t.created_at)}
-            </p>
-          </div>
-        );
-      })}
+              </>
+            )
+          )}
+        </div>
+      </div>
+
+      <div>
+        <div className="flex items-center gap-2 mb-1">
+          <p className="text-[14px] font-semibold text-text">{template.name}</p>
+          <span className="rounded-[var(--radius-sm)] border border-border bg-surface-raised px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-text-muted">
+            {template.template_type}
+          </span>
+        </div>
+        <p className="text-xs text-text-muted line-clamp-2 min-h-[32px]">
+          {template.description || "No description provided."}
+        </p>
+      </div>
+
+      <div className="pt-2 border-t border-border flex items-center justify-between mt-auto">
+        <button
+          onClick={onPreview}
+          className="inline-flex items-center gap-1 text-xs text-accent hover:underline font-medium cursor-pointer"
+        >
+          <Eye className="h-3.5 w-3.5" /> Inspect / Specs
+        </button>
+        <span className="text-[11px] text-text-faint font-mono">
+          {formatDateTime(template.created_at).split(",")[0]}
+        </span>
+      </div>
     </div>
   );
 }
@@ -233,7 +289,7 @@ function UploadTemplateDialog({
   const fileRef = useRef<HTMLInputElement>(null);
 
   const mutation = useMutation({
-    mutationFn: () => templatesApi.create(file, name, description || undefined),
+    mutationFn: () => templatesApi.create(file, name.trim(), description.trim() || undefined),
     onSuccess: () => {
       toast.success("Template uploaded successfully.");
       setFile(null);
@@ -248,15 +304,14 @@ function UploadTemplateDialog({
 
   return (
     <Dialog open={open} onClose={onClose}>
-      <DialogContent>
+      <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Upload template</DialogTitle>
+          <DialogTitle>Upload custom template</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 mt-4">
-          {/* File drop */}
           <div
             onClick={() => fileRef.current?.click()}
-            className={`relative flex flex-col items-center justify-center gap-2 rounded-[var(--radius-md)] border-2 border-dashed p-8 cursor-pointer transition-colors ${
+            className={`relative flex flex-col items-center justify-center gap-2 rounded-[var(--radius-md)] border-2 border-dashed p-7 cursor-pointer transition-colors ${
               file
                 ? "border-accent bg-accent-soft"
                 : "border-border hover:border-border-strong hover:bg-surface-hover"
@@ -269,7 +324,14 @@ function UploadTemplateDialog({
               className="sr-only"
               onChange={(e) => {
                 const f = e.target.files?.[0];
-                if (f) setFile(f);
+                if (f) {
+                  setFile(f);
+                  if (!name) {
+                    // Auto-fill friendly name from file name
+                    const autoName = f.name.replace(/\.(docx|tex\.j2|tex)$/i, "").replace(/[-_]/g, " ");
+                    setName(autoName);
+                  }
+                }
               }}
             />
             {file ? (
@@ -290,26 +352,28 @@ function UploadTemplateDialog({
               <>
                 <UploadCloud className="h-6 w-6 text-text-faint" />
                 <p className="text-sm text-text-muted">Click to select a .docx or .tex.j2 template</p>
+                <p className="text-[11px] text-text-faint">Supports standard docxtpl placeholders</p>
               </>
             )}
           </div>
 
           <div>
-            <label className="text-[13px] font-medium text-text-muted mb-1.5 block">
-              Template name <span className="text-danger">*</span>
+            <label className="text-[12px] font-medium text-text-muted mb-1 block">
+              Template Name <span className="text-danger">*</span>
             </label>
             <Input
-              placeholder="e.g. Copious Standard CV"
+              placeholder="e.g. Modern Agency Executive"
               value={name}
               onChange={(e) => setName(e.target.value)}
             />
           </div>
+
           <div>
-            <label className="text-[13px] font-medium text-text-muted mb-1.5 block">
+            <label className="text-[12px] font-medium text-text-muted mb-1 block">
               Description <span className="text-text-faint font-normal">(optional)</span>
             </label>
             <Textarea
-              placeholder="Brief description of the template's style or intended use"
+              placeholder="Brief description of typography, styling, or intended use case"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={2}
@@ -325,7 +389,166 @@ function UploadTemplateDialog({
               onClick={() => mutation.mutate()}
             >
               {mutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <UploadCloud className="h-4 w-4" />}
-              Upload
+              Upload Template
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Edit Template dialog ──────────────────────────────────────────────────────
+
+function EditTemplateDialog({
+  template,
+  onClose,
+  onSuccess,
+}: {
+  template: TemplateResponse | null;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+
+  // Sync state when template opens
+  const open = Boolean(template);
+  useState(() => {
+    if (template) {
+      setName(template.name);
+      setDescription(template.description || "");
+    }
+  });
+
+  const mutation = useMutation({
+    mutationFn: () =>
+      templatesApi.update(template!.id, {
+        name: name.trim(),
+        description: description.trim() || null,
+      }),
+    onSuccess: () => {
+      toast.success("Template metadata updated.");
+      onSuccess();
+    },
+    onError: (err) => {
+      toast.error(err instanceof ApiError ? err.message : "Update failed.");
+    },
+  });
+
+  if (!template) return null;
+
+  return (
+    <Dialog open={open} onClose={onClose}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Edit Template</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 mt-4">
+          <div>
+            <label className="text-[12px] font-medium text-text-muted mb-1 block">
+              Template Name
+            </label>
+            <Input
+              value={name || template.name}
+              onChange={(e) => setName(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="text-[12px] font-medium text-text-muted mb-1 block">
+              Description
+            </label>
+            <Textarea
+              value={description !== "" ? description : template.description || ""}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={3}
+            />
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="ghost" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button
+              disabled={mutation.isPending}
+              onClick={() => mutation.mutate()}
+            >
+              {mutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save Changes"}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Preview / Spec Modal ──────────────────────────────────────────────────────
+
+function PreviewTemplateModal({
+  template,
+  onClose,
+}: {
+  template: TemplateResponse | null;
+  onClose: () => void;
+}) {
+  const [downloading, setDownloading] = useState(false);
+
+  if (!template) return null;
+
+  async function handleDownloadOriginal() {
+    setDownloading(true);
+    try {
+      const res = await templatesApi.getDownloadUrl(template!.id);
+      if (res.download_url) {
+        window.open(res.download_url, "_blank");
+      }
+    } catch {
+      toast.error("Couldn't retrieve download link for this template.");
+    } finally {
+      setDownloading(false);
+    }
+  }
+
+  return (
+    <Dialog open={Boolean(template)} onClose={onClose}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <FileText className="h-5 w-5 text-accent" />
+            <span>{template.name}</span>
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 mt-3 text-xs text-text-muted">
+          <div className="p-4 rounded-[var(--radius-md)] bg-bg-elevated border border-border space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="text-text-faint font-medium">Format:</span>
+              <span className="font-mono text-text font-semibold uppercase">{template.template_type}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-text-faint font-medium">Template Type:</span>
+              <span className="text-text font-semibold">
+                {template.is_system ? "System Library (Built-in)" : "Organization Custom"}
+              </span>
+            </div>
+            {template.description && (
+              <div className="pt-2 border-t border-border">
+                <span className="text-text-faint block mb-0.5">Description:</span>
+                <p className="text-text leading-relaxed">{template.description}</p>
+              </div>
+            )}
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDownloadOriginal}
+              disabled={downloading}
+            >
+              {downloading ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <Download className="h-3.5 w-3.5 mr-1.5" />}
+              Download & View Document
+            </Button>
+            <Button size="sm" onClick={onClose}>
+              Close
             </Button>
           </div>
         </div>
@@ -363,8 +586,7 @@ function DeleteTemplateDialog({
           <DialogTitle>Delete template?</DialogTitle>
         </DialogHeader>
         <p className="text-sm text-text-muted mt-3">
-          This will permanently delete the template. Any in-progress generations using it may fail.
-          This action cannot be undone.
+          This will permanently delete this custom template. System templates cannot be deleted.
         </p>
         <div className="flex justify-end gap-2 mt-6">
           <Button variant="ghost" onClick={onClose}>

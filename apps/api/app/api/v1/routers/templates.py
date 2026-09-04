@@ -1,17 +1,16 @@
 """
 Templates API
 
-GET    /v1/templates        — list org's templates (active by default)
+GET    /v1/templates        — list templates (user's org + system templates)
 GET    /v1/templates/{id}   — get template details
 POST   /v1/templates        — upload a new template (admin only)
 PATCH  /v1/templates/{id}   — update template metadata (admin only)
-DELETE /v1/templates/{id}   — soft-delete (admin only)
+DELETE /v1/templates/{id}   — soft-delete (admin only, system templates locked)
+GET    /v1/templates/{id}/download — get signed URL to download / preview template
 
 Supports two template types:
   docx  — .docx file using docxtpl Jinja2 placeholders (classic approach)
   latex — .tex.j2 file using Jinja2 with LaTeX-safe delimiters (<< >>, <% %>)
-
-Both types produce PDF + DOCX output via the render pipeline.
 """
 
 from __future__ import annotations
@@ -19,9 +18,9 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, HTTPException, UploadFile, status
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import or_, select
 
 from app.api.v1.deps import AdminUser, CurrentUser, ScopedDB
 from app.models import Template
@@ -33,6 +32,7 @@ router = APIRouter(prefix="/templates")
 ALLOWED_DOCX_MIMES = {
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     "application/octet-stream",
+    "application/zip",
 }
 
 
@@ -55,6 +55,7 @@ class TemplateResponse(BaseModel):
     config_json: dict
     template_type: str  # "docx" | "latex"
     is_active: bool
+    is_system: bool = False
     created_at: datetime
     updated_at: datetime
 
@@ -81,8 +82,11 @@ async def list_templates(
 ) -> list[TemplateResponse]:
     result = await db.execute(
         select(Template)
-        .where(Template.org_id == user.org_id, Template.is_active == True)  # noqa: E712
-        .order_by(Template.created_at.asc())
+        .where(
+            or_(Template.org_id == user.org_id, Template.is_system == True),  # noqa: E712
+            Template.is_active == True,  # noqa: E712
+        )
+        .order_by(Template.is_system.desc(), Template.created_at.asc())
     )
     return [TemplateResponse.model_validate(t) for t in result.scalars().all()]
 
@@ -100,7 +104,7 @@ async def get_template(
     result = await db.execute(
         select(Template).where(
             Template.id == template_id,
-            Template.org_id == user.org_id,
+            or_(Template.org_id == user.org_id, Template.is_system == True),  # noqa: E712
             Template.is_active == True,  # noqa: E712
         )
     )
@@ -115,27 +119,19 @@ async def get_template(
     response_model=TemplateResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Upload a template (admin only)",
-    description=(
-        "Upload a DOCX or LaTeX (.tex.j2) template file.\n\n"
-        "**DOCX templates**: Use docxtpl Jinja2 placeholders. "
-        "See docs/cv_schema_template_mapping.md for the placeholder reference.\n\n"
-        "**LaTeX templates**: Use Jinja2 with LaTeX-safe delimiters: "
-        "`<< expression >>`, `<% block %>`, `<# comment #>`. "
-        "LaTeX escaping is applied automatically to all profile values."
-    ),
 )
 async def create_template(
     user: AdminUser,
     db: ScopedDB,
-    file: UploadFile | None = None,
-    name: str = "New Template",
-    description: str | None = None,
-    config_json: str = "{}",
+    file: UploadFile | None = File(None),
+    name: str = Form("New Template"),
+    description: str | None = Form(None),
+    config_json: str = Form("{}"),
 ) -> TemplateResponse:
     import json as json_mod
 
     try:
-        config = json_mod.loads(config_json)
+        config = json_mod.loads(config_json) if config_json else {}
     except json_mod.JSONDecodeError:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -184,15 +180,16 @@ async def create_template(
 
     template = Template(
         org_id=user.org_id,
-        name=name,
-        description=description,
+        name=name.strip() or "New Template",
+        description=description.strip() if description else None,
         config_json=config,
         docx_storage_url=storage_url,
         template_type=template_type,
+        is_system=False,
         created_by=user.user_id,
     )
     db.add(template)
-    await db.flush()
+    await db.commit()
     return TemplateResponse.model_validate(template)
 
 
@@ -210,21 +207,27 @@ async def update_template(
     result = await db.execute(
         select(Template).where(
             Template.id == template_id,
-            Template.org_id == user.org_id,
+            or_(Template.org_id == user.org_id, Template.is_system == True),  # noqa: E712
         )
     )
     template = result.scalar_one_or_none()
     if not template:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Template not found")
 
+    if template.is_system:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="System templates cannot be modified. Create a custom template instead.",
+        )
+
     if body.name is not None:
-        template.name = body.name
+        template.name = body.name.strip()
     if body.description is not None:
-        template.description = body.description
+        template.description = body.description.strip() if body.description else None
     if body.config_json is not None:
         template.config_json = body.config_json
 
-    await db.flush()
+    await db.commit()
     return TemplateResponse.model_validate(template)
 
 
@@ -241,12 +244,51 @@ async def delete_template(
     result = await db.execute(
         select(Template).where(
             Template.id == template_id,
-            Template.org_id == user.org_id,
+            or_(Template.org_id == user.org_id, Template.is_system == True),  # noqa: E712
         )
     )
     template = result.scalar_one_or_none()
     if not template:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Template not found")
 
+    if template.is_system:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="System templates cannot be deleted.",
+        )
+
     template.is_active = False
-    await db.flush()
+    await db.commit()
+
+
+@router.get(
+    "/{template_id}/download",
+    summary="Get signed download URL for template file",
+)
+async def get_template_download_url(
+    template_id: str,
+    user: CurrentUser,
+    db: ScopedDB,
+) -> dict:
+    result = await db.execute(
+        select(Template).where(
+            Template.id == template_id,
+            or_(Template.org_id == user.org_id, Template.is_system == True),  # noqa: E712
+            Template.is_active == True,  # noqa: E712
+        )
+    )
+    template = result.scalar_one_or_none()
+    if not template or not template.docx_storage_url:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Template file not found")
+
+    store = get_object_store()
+    ext = ".tex.j2" if template.template_type == "latex" else ".docx"
+    clean_name = f"{template.name}{ext}"
+    signed_url = await store.signed_url(
+        template.docx_storage_url,
+        expires_in=3600,
+        filename=clean_name,
+        disposition="attachment",
+    )
+    return {"download_url": signed_url, "name": template.name, "template_type": template.template_type}
+

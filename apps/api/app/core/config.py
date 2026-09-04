@@ -105,12 +105,12 @@ class Settings(BaseSettings):
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
 
     # ── Seed data ──────────────────────────────────────────────────────────
-    SEED_ORG_NAME: str = "Copious"
-    SEED_ADMIN_EMAIL: str = "admin@copious.com"
-    SEED_ADMIN_PASSWORD: str = "CHANGE_ME_on_first_login"
+    SEED_ORG_NAME: str = "CVMorph"
+    SEED_ADMIN_EMAIL: str = "admin@cvmorph.com"
+    SEED_ADMIN_PASSWORD: str = "CVMorph@123"
 
     # ── Branding ───────────────────────────────────────────────────────────
-    BRAND_NAME: str = "CV Platform"
+    BRAND_NAME: str = "CVMorph"
     BRAND_TAGLINE: str = "AI-powered CV transformation"
 
 
