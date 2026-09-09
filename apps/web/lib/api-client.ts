@@ -24,7 +24,30 @@ import type {
   UserResponse,
 } from "./types";
 
-const BASE_URL = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000") + "/v1";
+export function getBaseUrl(): string {
+  const envUrl = process.env.NEXT_PUBLIC_API_URL;
+  if (envUrl !== undefined && envUrl !== null) {
+    const trimmed = envUrl.trim();
+    if (trimmed === "") return "/v1";
+    // If not localhost, use the provided URL
+    if (!trimmed.includes("localhost") && !trimmed.includes("127.0.0.1")) {
+      return trimmed.replace(/\/$/, "") + "/v1";
+    }
+  }
+
+  // When running in the browser on Vercel / production (not on localhost)
+  if (
+    typeof window !== "undefined" &&
+    window.location.hostname !== "localhost" &&
+    window.location.hostname !== "127.0.0.1"
+  ) {
+    return "/v1";
+  }
+
+  // Local development default
+  return "http://localhost:8000/v1";
+}
+
 
 const TOKEN_KEY = "cvmorph_access_token";
 
@@ -73,7 +96,8 @@ async function request<T>(
     ...options.headers,
   };
 
-  const res = await fetch(`${BASE_URL}${path}`, { ...options, headers });
+  const baseUrl = getBaseUrl();
+  const res = await fetch(`${baseUrl}${path}`, { ...options, headers });
 
   if (res.status === 401) {
     setToken(null);
