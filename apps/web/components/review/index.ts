@@ -5,3 +5,4 @@ export { SkillGroupCard } from "./SkillGroupCard";
 export { EmploymentEntryCard } from "./EmploymentEntryCard";
 export { ApproveBar } from "./ApproveBar";
 export { PreviewPanel } from "./PreviewPanel";
+export { AIAgentDrawer } from "./AIAgentDrawer";

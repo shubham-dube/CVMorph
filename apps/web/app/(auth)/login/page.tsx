@@ -29,7 +29,7 @@ function LoginFormInner() {
     try {
       await loginWithGoogle();
       toast.success("Signed in successfully with Google.");
-      router.push(params.get("next") || "/candidates");
+      router.push(params.get("next") || "/dashboard");
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Google sign in failed.";
       toast.error(msg);

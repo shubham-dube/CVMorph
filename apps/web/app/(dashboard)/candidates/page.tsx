@@ -10,9 +10,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Briefcase,
-  CheckCircle2,
-  Clock,
   ArrowRight,
+  Layers,
 } from "lucide-react";
 import { Topbar } from "@/components/layout/Topbar";
 import { Input } from "@/components/ui/Input";
@@ -124,21 +123,21 @@ export default function CandidatesPage() {
                         >
                           {c.name}
                         </Link>
-                        {isApproved ? (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-confidence-high-soft px-2 py-0.5 text-[10px] font-medium text-confidence-high border border-confidence-high/30">
-                            <CheckCircle2 className="h-3 w-3" /> Approved
+                        {(c.profiles_count ?? 1) > 1 ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-accent-soft px-2 py-0.5 text-[10px] font-medium text-accent border border-accent/20">
+                            <Layers className="h-3 w-3" /> {c.profiles_count} Profiles
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-confidence-medium-soft px-2 py-0.5 text-[10px] font-medium text-confidence-medium border border-confidence-medium/30">
-                            <Clock className="h-3 w-3" /> Ready for Review
+                          <span className="inline-flex items-center gap-1 rounded-full bg-surface-hover px-2 py-0.5 text-[10px] font-medium text-text-faint border border-border">
+                            1 Profile
                           </span>
                         )}
                       </div>
 
                       {c.role_title ? (
-                        <p className="text-xs text-text-muted flex items-center gap-1 mt-0.5 truncate">
-                          <Briefcase className="h-3 w-3 shrink-0 text-text-faint" />
-                          <span>{c.role_title}</span>
+                        <p className="text-xs text-text-muted flex items-center gap-1.5 mt-0.5 truncate">
+                          <Briefcase className="h-3 w-3 shrink-0 text-accent/80" />
+                          <span className="font-medium text-text-muted">{c.role_title}</span>
                         </p>
                       ) : (
                         <p className="text-xs text-text-faint mt-0.5">Role extracted from CV</p>
@@ -153,7 +152,7 @@ export default function CandidatesPage() {
                   <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
                     <Link href={`/candidates/${c.id}/review`}>
                       <Button size="sm" variant="secondary" className="text-xs">
-                        Review & Studio <ArrowRight className="h-3 w-3 ml-1" />
+                        Open Studio <ArrowRight className="h-3 w-3 ml-1" />
                       </Button>
                     </Link>
                   </div>

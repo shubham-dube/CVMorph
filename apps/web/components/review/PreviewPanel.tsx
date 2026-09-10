@@ -9,12 +9,14 @@ import {
   Download,
   ZoomIn,
   ZoomOut,
+  RotateCw,
   RotateCcw,
   Sparkles,
   Maximize2,
   Minimize2,
   Layers,
   X,
+  RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { templatesApi, generationsApi, pollGeneration, ApiError } from "@/lib/api-client";
@@ -23,15 +25,26 @@ import type { TemplateResponse, GenerationResponse } from "@/lib/types";
 interface PreviewPanelProps {
   candidateId: string;
   candidateName: string;
+  profileId?: string;
+  profileTitle?: string;
   onClose?: () => void;
+  onGenerationChange?: (hasGeneration: boolean) => void;
 }
 
-export function PreviewPanel({ candidateId, candidateName, onClose }: PreviewPanelProps) {
+export function PreviewPanel({
+  candidateId,
+  candidateName,
+  profileId,
+  profileTitle,
+  onClose,
+  onGenerationChange,
+}: PreviewPanelProps) {
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
   const [rendering, setRendering] = useState(false);
   const [renderStep, setRenderStep] = useState<string>("");
   const [generation, setGeneration] = useState<GenerationResponse | null>(null);
   const [zoom, setZoom] = useState<number>(100);
+  const [rotation, setRotation] = useState<number>(0);
   const [fullscreen, setFullscreen] = useState(false);
 
   // Keyboard shortcut: Escape exits fullscreen
@@ -59,44 +72,49 @@ export function PreviewPanel({ candidateId, candidateName, onClose }: PreviewPan
     }
   }, [templates, selectedTemplateId]);
 
-  // Fetch most recent generation for this candidate if one exists
+  // Fetch recent generations for this candidate
   const { data: recentGens } = useQuery({
-    queryKey: ["generations", candidateId],
-    queryFn: () => generationsApi.list({ candidateId, pageSize: 1 }),
+    queryKey: ["generations", candidateId, profileId],
+    queryFn: () => generationsApi.list({ candidateId, pageSize: 50 }),
     enabled: !!candidateId,
   });
 
   useEffect(() => {
-    if (recentGens?.items && recentGens.items.length > 0 && !generation) {
-      const latest = recentGens.items[0];
-      if (latest.status === "complete") {
-        setGeneration(latest);
-      }
+    if (recentGens?.items && recentGens.items.length > 0) {
+      const matchingGen = profileId
+        ? recentGens.items.find((g) => g.profile_id === profileId && g.status === "complete")
+        : recentGens.items.find((g) => g.status === "complete");
+      setGeneration(matchingGen || null);
+      onGenerationChange?.(!!matchingGen);
+    } else {
+      setGeneration(null);
+      onGenerationChange?.(false);
     }
-  }, [recentGens, generation]);
+  }, [recentGens, profileId, onGenerationChange]);
 
   async function handleRenderPreview() {
     if (!selectedTemplateId) {
-      toast.error("Please select a template to preview.");
+      toast.error("Please select a template to generate.");
       return;
     }
 
     setRendering(true);
-    setRenderStep("Submitting render task...");
+    setRenderStep("Preparing profile data...");
     try {
-      const initial = await generationsApi.create(candidateId, selectedTemplateId);
-      setRenderStep("Formatting with template engine...");
+      const initial = await generationsApi.create(candidateId, selectedTemplateId, undefined, profileId);
+      setRenderStep("Applying template typography & layout...");
 
       const completed = await pollGeneration(initial.id, (status) => {
         if (status === "rendering") {
-          setRenderStep("Compiling PDF with LibreOffice...");
+          setRenderStep("Formatting executive PDF...");
         }
       });
 
       setGeneration(completed);
-      toast.success("CV preview compiled successfully!");
+      onGenerationChange?.(true);
+      toast.success(generation ? "Resume updated successfully!" : "Resume generated successfully!");
     } catch (err) {
-      const msg = err instanceof ApiError ? err.message : "Preview rendering failed.";
+      const msg = err instanceof ApiError ? err.message : "Document generation failed.";
       toast.error(msg);
     } finally {
       setRendering(false);
@@ -104,7 +122,27 @@ export function PreviewPanel({ candidateId, candidateName, onClose }: PreviewPan
     }
   }
 
+  const handleZoomIn = () => setZoom((z) => Math.min(220, z + 15));
+  const handleZoomOut = () => setZoom((z) => Math.max(50, z - 15));
+  const handleRotateCw = () => setRotation((r) => (r + 90) % 360);
+  const handleRotateCcw = () => setRotation((r) => (r + 270) % 360);
+  const handleResetView = () => {
+    setZoom(100);
+    setRotation(0);
+  };
+
   const selectedTemplate = templates?.find((t) => t.id === selectedTemplateId);
+
+  // Dynamic geometry calculation for crisp vector rendering and rotation bounding box
+  const isLandscape = rotation === 90 || rotation === 270;
+  const baseWidth = fullscreen ? 920 : 800;
+  const baseHeight = Math.round(baseWidth * 1.414); // Standard A4 ratio
+  const scaledWidth = Math.round(baseWidth * (zoom / 100));
+  const scaledHeight = Math.round(baseHeight * (zoom / 100));
+
+  // Outer bounds swap dimensions if rotated 90° or 270° to avoid clipping
+  const outerWidth = isLandscape ? scaledHeight : scaledWidth;
+  const outerHeight = isLandscape ? scaledWidth : scaledHeight;
 
   return (
     <div
@@ -121,7 +159,9 @@ export function PreviewPanel({ candidateId, candidateName, onClose }: PreviewPan
             <Layers className="h-4 w-4" />
           </div>
           <div className="min-w-0">
-            <h4 className="text-xs font-semibold text-text truncate">Live CV Studio Preview</h4>
+            <h4 className="text-xs font-semibold text-text truncate">
+              {profileTitle ? `${profileTitle} • Live Preview` : "Live Resume Preview"}
+            </h4>
             <p className="text-[10px] text-text-faint truncate">
               {selectedTemplate ? `${selectedTemplate.name} (${selectedTemplate.template_type.toUpperCase()})` : "Select template"}
             </p>
@@ -152,12 +192,17 @@ export function PreviewPanel({ candidateId, candidateName, onClose }: PreviewPan
             {rendering ? (
               <>
                 <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
-                Rendering...
+                Generating...
+              </>
+            ) : generation ? (
+              <>
+                <Sparkles className="h-3.5 w-3.5 mr-1" />
+                Update Resume
               </>
             ) : (
               <>
                 <Sparkles className="h-3.5 w-3.5 mr-1" />
-                Render Preview
+                Generate Resume
               </>
             )}
           </Button>
@@ -186,30 +231,81 @@ export function PreviewPanel({ candidateId, candidateName, onClose }: PreviewPan
 
       {/* Toolbar when preview is ready */}
       {generation && generation.status === "complete" && (
-        <div className="flex items-center justify-between px-4 py-2 border-b border-border/60 bg-surface text-xs text-text-muted shrink-0">
-          <div className="flex items-center gap-1.5">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2 border-b border-border/60 bg-surface text-xs text-text-muted shrink-0">
+          <div className="flex items-center gap-1">
+            {/* Zoom Controls */}
             <button
-              onClick={() => setZoom((z) => Math.max(50, z - 15))}
-              className="p-1 rounded hover:bg-surface-hover text-text-faint hover:text-text"
-              title="Zoom out"
+              onClick={handleZoomOut}
+              disabled={zoom <= 50}
+              className="p-1.5 rounded hover:bg-surface-hover text-text-faint hover:text-text disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              title="Zoom out (-15%)"
             >
               <ZoomOut className="h-3.5 w-3.5" />
             </button>
-            <span className="text-[11px] font-mono w-10 text-center">{zoom}%</span>
+
+            {/* Quick zoom presets */}
+            <select
+              value={zoom}
+              onChange={(e) => setZoom(Number(e.target.value))}
+              className="text-[11px] font-mono rounded border border-border bg-surface px-1.5 py-0.5 text-text focus:outline-none focus:border-accent cursor-pointer"
+              title="Select zoom level"
+            >
+              <option value={50}>50%</option>
+              <option value={75}>75%</option>
+              <option value={90}>90%</option>
+              <option value={100}>100%</option>
+              <option value={115}>115%</option>
+              <option value={130}>130%</option>
+              <option value={150}>150%</option>
+              <option value={175}>175%</option>
+              <option value={200}>200%</option>
+            </select>
+
             <button
-              onClick={() => setZoom((z) => Math.min(200, z + 15))}
-              className="p-1 rounded hover:bg-surface-hover text-text-faint hover:text-text"
-              title="Zoom in"
+              onClick={handleZoomIn}
+              disabled={zoom >= 220}
+              className="p-1.5 rounded hover:bg-surface-hover text-text-faint hover:text-text disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              title="Zoom in (+15%)"
             >
               <ZoomIn className="h-3.5 w-3.5" />
             </button>
+
+            <div className="h-3.5 w-px bg-border mx-1" />
+
+            {/* Rotation Controls */}
             <button
-              onClick={() => setZoom(100)}
-              className="p-1 rounded hover:bg-surface-hover text-text-faint hover:text-text ml-1"
-              title="Reset zoom"
+              onClick={handleRotateCcw}
+              className="p-1.5 rounded hover:bg-surface-hover text-text-faint hover:text-text transition-colors"
+              title="Rotate 90° counter-clockwise"
             >
-              <RotateCcw className="h-3 w-3" />
+              <RotateCcw className="h-3.5 w-3.5" />
             </button>
+
+            <button
+              onClick={handleRotateCw}
+              className="p-1.5 rounded hover:bg-surface-hover text-text-faint hover:text-text transition-colors"
+              title="Rotate 90° clockwise"
+            >
+              <RotateCw className="h-3.5 w-3.5" />
+            </button>
+
+            {rotation !== 0 && (
+              <span className="text-[10px] font-mono px-1 rounded bg-accent-soft text-accent">
+                {rotation}°
+              </span>
+            )}
+
+            {/* Reset view */}
+            {(zoom !== 100 || rotation !== 0) && (
+              <button
+                onClick={handleResetView}
+                className="flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded hover:bg-surface-hover text-text-muted hover:text-text transition-colors ml-0.5"
+                title="Reset zoom & rotation"
+              >
+                <RefreshCw className="h-3 w-3" />
+                <span>Reset</span>
+              </button>
+            )}
           </div>
 
           <div className="flex items-center gap-2">
@@ -239,49 +335,59 @@ export function PreviewPanel({ candidateId, candidateName, onClose }: PreviewPan
 
       {/* Main Preview Canvas */}
       <div
-        className={`flex-1 bg-bg/90 overflow-auto flex items-center justify-center relative ${
-          fullscreen ? "p-0 m-0" : "p-4"
+        className={`flex-1 bg-bg/90 overflow-auto flex items-start justify-center relative ${
+          fullscreen ? "p-6" : "p-4"
         }`}
       >
         {rendering ? (
-          <div className="flex flex-col items-center gap-3 p-8 text-center animate-fade-in">
+          <div className="m-auto flex flex-col items-center gap-3 p-8 text-center animate-fade-in">
             <div className="relative flex h-12 w-12 items-center justify-center rounded-xl bg-accent-soft text-accent">
               <Loader2 className="h-6 w-6 animate-spin" />
             </div>
             <div>
-              <p className="text-sm font-semibold text-text">Compiling Document Preview</p>
-              <p className="text-xs text-text-muted mt-1 font-mono">{renderStep || "Processing candidate profile..."}</p>
+              <p className="text-sm font-semibold text-text">Generating Resume</p>
+              <p className="text-xs text-text-muted mt-1 font-mono">{renderStep || "Formatting candidate document..."}</p>
             </div>
           </div>
         ) : generation && generation.output_pdf_url ? (
           <div
-            className={`transition-transform duration-150 origin-top flex justify-center ${
-              fullscreen ? "w-full h-full p-0 m-0" : "w-full h-full"
-            }`}
-            style={{ transform: `scale(${zoom / 100})` }}
+            className="m-auto relative flex items-center justify-center transition-all duration-200"
+            style={{
+              width: `${outerWidth}px`,
+              height: `${outerHeight}px`,
+              minWidth: `${outerWidth}px`,
+              minHeight: `${outerHeight}px`,
+            }}
           >
-            <iframe
-              src={`${generation.output_pdf_url}#toolbar=0&navpanes=0`}
-              className={`w-full h-full bg-white shadow-xl ${
-                fullscreen ? "border-none rounded-none min-h-[calc(100vh-90px)]" : "min-h-[600px] rounded-md border border-border"
-              }`}
-              title="CV Document Preview"
-            />
+            <div
+              className="absolute transition-transform duration-200 ease-out origin-center"
+              style={{
+                width: `${scaledWidth}px`,
+                height: `${scaledHeight}px`,
+                transform: `rotate(${rotation}deg)`,
+              }}
+            >
+              <iframe
+                src={`${generation.output_pdf_url}#toolbar=0&navpanes=0&view=FitH`}
+                className="w-full h-full bg-white shadow-2xl rounded-md border border-border"
+                title="CV Document Preview"
+              />
+            </div>
           </div>
         ) : (
-          <div className="flex flex-col items-center gap-3.5 max-w-sm text-center p-6">
+          <div className="m-auto flex flex-col items-center gap-3.5 max-w-sm text-center p-6">
             <div className="h-12 w-12 rounded-xl bg-surface border border-border flex items-center justify-center text-text-faint">
               <FileText className="h-6 w-6" />
             </div>
             <div>
-              <h5 className="text-sm font-semibold text-text">No Preview Rendered Yet</h5>
+              <h5 className="text-sm font-semibold text-text">Resume Not Yet Generated</h5>
               <p className="text-xs text-text-muted mt-1 leading-relaxed">
-                Click <strong>Render Preview</strong> to test this profile against the selected template and view the final PDF live.
+                Click <strong>Generate Resume</strong> to format this candidate profile with the selected corporate template and view the live PDF.
               </p>
             </div>
             <Button size="sm" onClick={handleRenderPreview} disabled={!selectedTemplateId}>
               <Sparkles className="h-3.5 w-3.5 mr-1" />
-              Render Now
+              Generate Resume
             </Button>
           </div>
         )}
