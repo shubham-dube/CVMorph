@@ -91,7 +91,8 @@ class User(Base):
         UUID(as_uuid=False), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
     )
     email: Mapped[str] = mapped_column(String(320), nullable=False)
-    hashed_password: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    picture_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     google_sub: Mapped[str | None] = mapped_column(String(255), nullable=True)  # OAuth subject
     role: Mapped[str] = mapped_column(
         Enum("admin", "recruiter", name="user_role_enum"), nullable=False, default="recruiter"
@@ -212,8 +213,16 @@ class CandidateProfile(Base):
     candidate_id: Mapped[str] = mapped_column(
         UUID(as_uuid=False), ForeignKey("candidates.id", ondelete="CASCADE"), nullable=False
     )
-    source_document_id: Mapped[str] = mapped_column(
-        UUID(as_uuid=False), ForeignKey("documents.id", ondelete="RESTRICT"), nullable=False
+    source_document_id: Mapped[str | None] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("documents.id", ondelete="SET NULL"), nullable=True
+    )
+    title: Mapped[str] = mapped_column(String(255), nullable=False, default="Primary Profile")
+    target_role: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    job_description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    custom_prompt: Mapped[str | None] = mapped_column(Text, nullable=True)
+    bluff_level: Mapped[str | None] = mapped_column(String(50), nullable=True, default="none")
+    parent_profile_id: Mapped[str | None] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("candidate_profiles.id", ondelete="SET NULL"), nullable=True
     )
     profile_json: Mapped[dict] = mapped_column(JSON, nullable=False)
     extraction_status: Mapped[str] = mapped_column(
@@ -407,36 +416,4 @@ class UsageEvent(Base):
     )  # e.g. generation_id
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now
-    )
-
-
-class ApiKey(Base):
-    """
-    Public API keys for future developer/metered API product (P3).
-
-    key_hash: SHA-256 of the raw key — never store the raw key.
-    scopes: list of allowed scopes e.g. ["documents:write", "profiles:read"]
-    """
-
-    __tablename__ = "api_keys"
-
-    id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=_uuid)
-    org_id: Mapped[str] = mapped_column(
-        UUID(as_uuid=False), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
-    )
-    name: Mapped[str] = mapped_column(String(255), nullable=False)
-    key_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
-    scopes: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
-    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    last_used_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-    created_by: Mapped[str | None] = mapped_column(
-        UUID(as_uuid=False), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
-    )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, default=_now
-    )
-    expires_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
     )

@@ -1,0 +1,33 @@
+# Local uploads & temporary test files
+uploads/
+/uploads
+**/uploads/**
+
+# Git & IDE
+.git/
+.github/
+.vscode/
+.idea/
+*.log
+
+# Python cache & virtual environments
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Tests & Docs
+tests/
+apps/api/tests/
+docs/
+
+# Node dependencies & builds
+node_modules/
+.next/
+dist/
+build/

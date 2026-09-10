@@ -6,9 +6,16 @@
  * backend contract changes, this is the one file to update.
  */
 import type {
+  AgentEditRequest,
+  AgentEditResponse,
   CandidateListResponse,
   CandidateProfile,
+  CandidateProfileSummary,
+  CandidateProfilesListResponse,
   CandidateResponse,
+  CloneProfileRequest,
+  CreateCandidateFromTextRequest,
+  DashboardStatsResponse,
   DocumentListResponse,
   DocumentUploadResponse,
   GenerationListResponse,
@@ -18,13 +25,37 @@ import type {
   OrgResponse,
   ProfileResponse,
   ReviewEventResponse,
+  TailorProfileRequest,
   TemplateResponse,
   TokenResponse,
   UsageSummaryResponse,
   UserResponse,
 } from "./types";
 
-const BASE_URL = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000") + "/v1";
+export function getBaseUrl(): string {
+  const envUrl = process.env.NEXT_PUBLIC_API_URL;
+  if (envUrl !== undefined && envUrl !== null) {
+    const trimmed = envUrl.trim();
+    if (trimmed === "") return "/v1";
+    // If not localhost, use the provided URL
+    if (!trimmed.includes("localhost") && !trimmed.includes("127.0.0.1")) {
+      return trimmed.replace(/\/$/, "") + "/v1";
+    }
+  }
+
+  // When running in the browser on Vercel / production (not on localhost)
+  if (
+    typeof window !== "undefined" &&
+    window.location.hostname !== "localhost" &&
+    window.location.hostname !== "127.0.0.1"
+  ) {
+    return "/v1";
+  }
+
+  // Local development default
+  return "http://localhost:8000/v1";
+}
+
 
 const TOKEN_KEY = "cvmorph_access_token";
 
@@ -38,9 +69,8 @@ export function setToken(token: string | null) {
   if (token) {
     localStorage.setItem(TOKEN_KEY, token);
     // Mirrored into a plain cookie so the Next.js middleware can gate
-    // dashboard routes server-side. See docs/FRONTEND_BACKEND_GAPS.md §1
-    // for why this isn't httpOnly and what should replace it.
-    document.cookie = `cvmorph_session=1; path=/; max-age=${60 * 60 * 24 * 7}; samesite=lax`;
+    // dashboard routes server-side. 30 days duration (industry standard).
+    document.cookie = `cvmorph_session=1; path=/; max-age=${60 * 60 * 24 * 30}; samesite=lax`;
   } else {
     localStorage.removeItem(TOKEN_KEY);
     document.cookie = "cvmorph_session=; path=/; max-age=0";
@@ -54,7 +84,9 @@ export class ApiError extends Error {
     const message =
       typeof detail === "string"
         ? detail
-        : (detail as { message?: string })?.message ?? JSON.stringify(detail);
+        : (detail as { detail?: string; message?: string })?.detail ??
+          (detail as { detail?: string; message?: string })?.message ??
+          JSON.stringify(detail);
     super(message);
     this.status = status;
     this.detail = detail;
@@ -73,7 +105,8 @@ async function request<T>(
     ...options.headers,
   };
 
-  const res = await fetch(`${BASE_URL}${path}`, { ...options, headers });
+  const baseUrl = getBaseUrl();
+  const res = await fetch(`${baseUrl}${path}`, { ...options, headers });
 
   if (res.status === 401) {
     setToken(null);
@@ -87,7 +120,7 @@ async function request<T>(
     throw new ApiError(res.status, body.detail ?? body);
   }
 
-  if (res.status === 204) return {} as T;
+  if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
 }
 
@@ -102,9 +135,10 @@ export const authApi = {
   googleLogin: (idToken: string, email?: string, name?: string, photoUrl?: string) =>
     request<TokenResponse>("/auth/google", {
       method: "POST",
-      body: JSON.stringify({ id_token: idToken, email, name, photo_url: photoUrl }),
+      body: JSON.stringify({ id_token: idToken, email, name, photo_url: photoUrl, picture_url: photoUrl }),
     }),
   me: () => request<UserResponse>("/auth/me"),
+  refreshToken: () => request<TokenResponse>("/auth/refresh", { method: "POST" }),
 };
 
 // ── Documents ────────────────────────────────────────────────────────────────
@@ -183,8 +217,22 @@ export const candidatesApi = {
   },
   create: (name: string) =>
     request<CandidateResponse>("/candidates", { method: "POST", body: JSON.stringify({ name }) }),
+  createFromText: (body: CreateCandidateFromTextRequest) =>
+    request<ProfileResponse>("/candidates/from-text", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
   get: (id: string) => request<CandidateResponse>(`/candidates/${id}`),
-  getProfile: (id: string) => request<ProfileResponse>(`/candidates/${id}/profile`),
+  getProfile: (id: string, profileId?: string) =>
+    request<ProfileResponse>(`/candidates/${id}/profile${profileId ? `?profile_id=${profileId}` : ""}`),
+  listProfiles: (id: string) => request<CandidateProfilesListResponse>(`/candidates/${id}/profiles`),
+  getProfileById: (id: string, profileId: string) =>
+    request<ProfileResponse>(`/candidates/${id}/profiles/${profileId}`),
+  tailorProfile: (id: string, body: TailorProfileRequest) =>
+    request<ProfileResponse>(`/candidates/${id}/profiles/tailor`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
   patchProfile: (
     id: string,
     body: {
@@ -193,36 +241,79 @@ export const candidatesApi = {
       old_value: unknown;
       new_value: unknown;
       profile: CandidateProfile;
-    }
+    },
+    profileId?: string
   ) =>
-    request<ProfileResponse>(`/candidates/${id}/profile`, {
+    request<ProfileResponse>(
+      profileId ? `/candidates/${id}/profiles/${profileId}` : `/candidates/${id}/profile`,
+      {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      }
+    ),
+  updateProfileTitle: (id: string, profileId: string, title: string) =>
+    request<CandidateProfileSummary>(`/candidates/${id}/profiles/${profileId}/title`, {
       method: "PATCH",
+      body: JSON.stringify({ title }),
+    }),
+  cloneProfile: (id: string, body: CloneProfileRequest) =>
+    request<ProfileResponse>(`/candidates/${id}/profiles/clone`, {
+      method: "POST",
       body: JSON.stringify(body),
     }),
-  approveProfile: (id: string) =>
+  deleteProfile: (id: string, profileId: string) =>
+    request<{ status: string; message: string }>(`/candidates/${id}/profiles/${profileId}`, {
+      method: "DELETE",
+    }),
+  agentEditProfile: (candidateId: string, profileId: string, body: AgentEditRequest) =>
+    request<AgentEditResponse>(`/candidates/${candidateId}/profiles/${profileId}/agent-edit`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  approveProfile: (id: string, profileId?: string) =>
     request<{ status: string; profile_id: string; approved_at: string; message: string }>(
-      `/candidates/${id}/profile/approve`,
+      profileId
+        ? `/candidates/${id}/profiles/${profileId}/approve`
+        : `/candidates/${id}/profile/approve`,
       { method: "POST" }
     ),
+  setMasterProfile: (id: string, profileId: string) =>
+    request<CandidateProfileSummary>(`/candidates/${id}/profiles/${profileId}/set-master`, {
+      method: "PATCH",
+    }),
   reviewEvents: (id: string) => request<ReviewEventResponse[]>(`/candidates/${id}/profile/review-events`),
 };
 
 // ── Generations ──────────────────────────────────────────────────────────────
 
 export const generationsApi = {
-  create: (candidateId: string, templateId: string, formattingInstructions?: string) =>
+  create: (
+    candidateId: string,
+    templateId: string,
+    formattingInstructions?: string,
+    profileId?: string
+  ) =>
     request<GenerationResponse>("/generations", {
       method: "POST",
       body: JSON.stringify({
         candidate_id: candidateId,
         template_id: templateId,
         formatting_instructions: formattingInstructions ?? null,
+        profile_id: profileId ?? null,
       }),
     }),
   get: (id: string) => request<GenerationResponse>(`/generations/${id}`),
-  list: (params?: { candidateId?: string; page?: number; pageSize?: number }) => {
+  list: (params?: {
+    candidateId?: string;
+    status?: string;
+    search?: string;
+    page?: number;
+    pageSize?: number;
+  }) => {
     const qs = new URLSearchParams();
     if (params?.candidateId) qs.set("candidate_id", params.candidateId);
+    if (params?.status && params.status !== "all") qs.set("status", params.status);
+    if (params?.search) qs.set("search", params.search);
     if (params?.page) qs.set("page", String(params.page));
     if (params?.pageSize) qs.set("page_size", String(params.pageSize));
     const s = qs.toString();
@@ -274,4 +365,10 @@ export const extractApi = {
       body: form,
     });
   },
+};
+
+// ── Dashboard ────────────────────────────────────────────────────────────────
+
+export const dashboardApi = {
+  getStats: () => request<DashboardStatsResponse>("/dashboard/stats"),
 };

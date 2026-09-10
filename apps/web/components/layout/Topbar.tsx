@@ -38,7 +38,7 @@ export function Topbar({ title }: { title?: string }) {
             onClick={() => setMenuOpen((o) => !o)}
             className="flex items-center gap-2 rounded-[var(--radius-sm)] px-2 py-1.5 hover:bg-surface-hover transition-colors"
           >
-            <Avatar name={user?.email ?? "?"} />
+            <Avatar name={user?.name || user?.email || "?"} src={user?.picture_url} />
             <ChevronDown className="h-3.5 w-3.5 text-text-faint" />
           </button>
           {menuOpen && (
@@ -46,8 +46,11 @@ export function Topbar({ title }: { title?: string }) {
               <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
               <div className="absolute right-0 top-11 z-50 w-56 rounded-[var(--radius-md)] border border-border bg-surface-raised p-1.5 shadow-2xl animate-fade-in">
                 <div className="px-2.5 py-2 border-b border-border mb-1">
-                  <p className="text-[13px] font-medium text-text truncate">{user?.email}</p>
-                  <p className="text-[11px] text-text-faint capitalize">{user?.role}</p>
+                  {user?.name && (
+                    <p className="text-[13px] font-semibold text-text truncate">{user.name}</p>
+                  )}
+                  <p className="text-[12px] text-text-muted truncate">{user?.email}</p>
+                  <p className="text-[10px] text-text-faint capitalize mt-0.5">{user?.role}</p>
                 </div>
                 <button
                   onClick={logout}

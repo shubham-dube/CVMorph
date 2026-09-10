@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  LayoutDashboard,
   Users,
   UploadCloud,
   FileStack,
@@ -15,6 +16,7 @@ import { BRAND } from "@/lib/branding";
 import { useAuth } from "@/lib/auth-context";
 
 const NAV = [
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/candidates", label: "Candidates", icon: Users },
   { href: "/upload", label: "Upload CV", icon: UploadCloud },
   { href: "/generations", label: "Generations", icon: FileStack },

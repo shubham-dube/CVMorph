@@ -61,3 +61,6 @@ apps/api/alembic.ini.bak
 # ── Test artefacts ───────────────────────────────────────────────────────
 apps/api/tests/fixtures/reference_cvs/*.docx
 apps/api/tests/fixtures/reference_cvs/*.pdf
+
+.vercel
+.env*

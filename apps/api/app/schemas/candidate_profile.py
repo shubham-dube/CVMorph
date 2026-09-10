@@ -34,15 +34,19 @@ class SourceType(str, Enum):
     """
     How the field's value relates to the original CV text.
 
-    source               — copied / lightly cleaned directly from the original CV.
+    source                  — copied / lightly cleaned directly from the original CV.
     verified_transformation — reworded by AI but every fact checked against source text.
-    ai_generated         — synthesised (e.g. a summary paragraph with no single 1:1 sentence).
-                           Always flagged distinctly in the review UI.
+    ai_generated            — synthesised (e.g. a summary paragraph with no single 1:1 sentence).
+    tailored_enhancement    — aligned with Job Description keywords without introducing ungrounded facts.
+    extrapolated_bluff      — calculated embellishment / creative addition per bluff level setting.
+                              Prominently flagged in review UI with evidence.
     """
 
     source = "source"
     verified_transformation = "verified_transformation"
     ai_generated = "ai_generated"
+    tailored_enhancement = "tailored_enhancement"
+    extrapolated_bluff = "extrapolated_bluff"
 
 
 class Provenance(BaseModel):
@@ -69,7 +73,7 @@ class Meta(BaseModel):
 
     org_id: str
     candidate_id: str
-    source_document_id: str
+    source_document_id: str | None = None
     extraction_model: str = Field(description="e.g. claude-sonnet-4-5")
     extraction_version: str = Field(description="e.g. v1 — bump on major prompt changes")
     extraction_instructions: str | None = Field(

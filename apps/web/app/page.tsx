@@ -67,8 +67,8 @@ export default function LandingPage() {
             {isLoading ? (
               <div className="h-8 w-20 rounded-md bg-surface animate-pulse" />
             ) : isAuthenticated ? (
-              <Button size="sm" onClick={() => router.push("/candidates")}>
-                Open Studio <ArrowRight className="h-3.5 w-3.5 ml-1" />
+              <Button size="sm" onClick={() => router.push("/dashboard")}>
+                Open Dashboard <ArrowRight className="h-3.5 w-3.5 ml-1" />
               </Button>
             ) : (
               <>
@@ -113,7 +113,7 @@ export default function LandingPage() {
           <Button
             size="lg"
             className="w-full sm:w-auto h-12 px-7 text-sm font-semibold shadow-lg shadow-accent/25"
-            onClick={() => router.push(isAuthenticated ? "/candidates" : "/login")}
+            onClick={() => router.push(isAuthenticated ? "/dashboard" : "/login")}
           >
             {isAuthenticated ? "Launch Dashboard" : "Start Formatting Free"} <ArrowRight className="h-4 w-4 ml-1.5" />
           </Button>
