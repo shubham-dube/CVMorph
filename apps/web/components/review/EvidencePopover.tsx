@@ -4,10 +4,10 @@ import type { SourceType } from "@/lib/types";
 
 const SOURCE_TYPE_LABEL: Record<SourceType, string> = {
   source: "Copied directly from the original CV",
-  verified_transformation: "Reworded by AI, every fact checked against the source",
-  ai_generated: "Synthesized by AI — no single matching source sentence",
-  tailored_enhancement: "Tailored for Job Description — grounded in candidate experience with target role alignment",
-  extrapolated_bluff: "Controlled Bluff / Extrapolated — generative addition created to bridge role requirements",
+  verified_transformation: "Reworded by AI, verified factually against source background",
+  ai_generated: "Synthesized by AI — structured from candidate career context",
+  tailored_enhancement: "AI Enhanced — targeted role positioning aligned with candidate capabilities",
+  extrapolated_bluff: "Strategic Addition — extrapolated competency added to bridge target scope",
 };
 
 export function EvidencePopover({
@@ -22,20 +22,20 @@ export function EvidencePopover({
       <Popover
         openOnHover
         trigger={
-          <button className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-500/10 border border-amber-500/30 px-1.5 py-0.5 rounded hover:bg-amber-500/20 transition-colors">
-            <AlertTriangle className="h-3 w-3 text-amber-500" />
-            Bluff / Added
+          <button className="inline-flex items-center gap-1 text-[11px] font-semibold text-purple-600 dark:text-purple-400 bg-purple-500/10 border border-purple-500/30 px-1.5 py-0.5 rounded hover:bg-purple-500/20 transition-colors">
+            <Sparkles className="h-3 w-3 text-purple-500" />
+            Strategic Addition
           </button>
         }
       >
-        <p className="text-[10px] font-bold uppercase tracking-wider text-amber-500 mb-1">
-          Controlled Bluff / Generative Addition
+        <p className="text-[10px] font-bold uppercase tracking-wider text-purple-500 mb-1">
+          Strategic Competency Addition
         </p>
         <p className="text-xs text-text-muted leading-relaxed">
           {SOURCE_TYPE_LABEL.extrapolated_bluff}
         </p>
         {evidence && (
-          <blockquote className="mt-2 text-[12px] italic text-text-muted border-l-2 border-amber-500/60 pl-2.5 bg-amber-500/5 py-1 rounded-r">
+          <blockquote className="mt-2 text-[12px] italic text-text-muted border-l-2 border-purple-500/60 pl-2.5 bg-purple-500/5 py-1 rounded-r">
             &ldquo;{evidence}&rdquo;
           </blockquote>
         )}
@@ -50,12 +50,12 @@ export function EvidencePopover({
         trigger={
           <button className="inline-flex items-center gap-1 text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 border border-indigo-500/30 px-1.5 py-0.5 rounded hover:bg-indigo-500/20 transition-colors">
             <Wand2 className="h-3 w-3 text-indigo-500" />
-            Tailored for JD
+            AI Enhanced
           </button>
         }
       >
         <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-500 mb-1">
-          Tailored Enhancement
+          Targeted Role Enhancement
         </p>
         <p className="text-xs text-text-muted leading-relaxed">
           {SOURCE_TYPE_LABEL.tailored_enhancement}

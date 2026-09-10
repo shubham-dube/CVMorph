@@ -117,7 +117,7 @@ export function SkillGroupCard({
       className={cn(
         "group rounded-[var(--radius-md)] border p-3 transition-colors",
         isBluff
-          ? "border-l-[3px] border-l-amber-500 bg-amber-500/5 hover:bg-amber-500/10"
+          ? "border-l-[3px] border-l-purple-500 bg-purple-500/5 hover:bg-purple-500/10"
           : isTailored
           ? "border-l-[3px] border-l-indigo-500/80 bg-indigo-500/5 hover:bg-indigo-500/10"
           : flagged

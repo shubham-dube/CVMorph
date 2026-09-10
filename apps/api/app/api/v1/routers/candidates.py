@@ -417,11 +417,22 @@ async def get_profile(
     db: ScopedDB,
     profile_id: str | None = Query(None, description="Optional specific profile ID"),
 ) -> ProfileResponse:
-    await _get_candidate_or_404(candidate_id, user.org_id, db)
+    candidate = await _get_candidate_or_404(candidate_id, user.org_id, db)
     if profile_id:
         profile_row = await _get_profile_by_id_or_404(candidate_id, profile_id, user.org_id, db)
     else:
-        profile_row = await _get_latest_profile_or_404(candidate_id, user.org_id, db)
+        profile_row = None
+        if candidate.master_profile_id:
+            res = await db.execute(
+                select(CandidateProfileModel).where(
+                    CandidateProfileModel.id == candidate.master_profile_id,
+                    CandidateProfileModel.candidate_id == candidate_id,
+                    CandidateProfileModel.org_id == user.org_id,
+                )
+            )
+            profile_row = res.scalar_one_or_none()
+        if not profile_row:
+            profile_row = await _get_latest_profile_or_404(candidate_id, user.org_id, db)
 
     return _build_profile_response(profile_row, candidate_id)
 
@@ -517,6 +528,38 @@ async def update_profile_title(
         overall_confidence=float(profile_row.overall_confidence) if profile_row.overall_confidence else None,
         parent_profile_id=getattr(profile_row, "parent_profile_id", None),
         is_master=(candidate.master_profile_id == profile_row.id),
+        created_at=profile_row.created_at,
+        updated_at=profile_row.updated_at,
+    )
+
+
+@router.patch(
+    "/{candidate_id}/profiles/{profile_id}/set-master",
+    response_model=CandidateProfileSummary,
+    summary="Set profile as master/default profile",
+)
+async def set_master_profile(
+    candidate_id: str,
+    profile_id: str,
+    user: CurrentUser,
+    db: ScopedDB,
+) -> CandidateProfileSummary:
+    candidate = await _get_candidate_or_404(candidate_id, user.org_id, db)
+    profile_row = await _get_profile_by_id_or_404(candidate_id, profile_id, user.org_id, db)
+
+    candidate.master_profile_id = profile_row.id
+    await db.commit()
+
+    return CandidateProfileSummary(
+        id=profile_row.id,
+        candidate_id=profile_row.candidate_id,
+        title=getattr(profile_row, "title", None) or "Primary Profile",
+        target_role=getattr(profile_row, "target_role", None),
+        bluff_level=getattr(profile_row, "bluff_level", None) or "none",
+        extraction_status=profile_row.extraction_status,
+        overall_confidence=float(profile_row.overall_confidence) if profile_row.overall_confidence else None,
+        parent_profile_id=getattr(profile_row, "parent_profile_id", None),
+        is_master=True,
         created_at=profile_row.created_at,
         updated_at=profile_row.updated_at,
     )
@@ -944,33 +987,37 @@ async def patch_profile(
     return _build_profile_response(profile_row, candidate_id, body.profile)
 
 
-@router.post(
-    "/{candidate_id}/profile/approve",
-    response_model=ApproveResponse,
-    summary="Approve the candidate profile",
-    description=(
-        "Marks the profile as approved, enabling CV generation.\n\n"
-        "**Pre-conditions (enforced here):**\n"
-        "- All fields with confidence < 0.85 must have been explicitly confirmed, "
-        "edited, or removed (i.e. have at least one ReviewEvent record).\n"
-        "- If any low-confidence fields are unreviewed, returns HTTP 422 with the "
-        "list of field paths that need attention."
-    ),
-)
-async def approve_profile(
+async def _execute_profile_approval(
     candidate_id: str,
+    profile_id: str | None,
     user: CurrentUser,
-    db: ScopedDB,
+    db: AsyncSession,
 ) -> ApproveResponse:
-    await _get_candidate_or_404(candidate_id, user.org_id, db)
-    profile_row = await _get_latest_profile_or_404(candidate_id, user.org_id, db)
+    candidate = await _get_candidate_or_404(candidate_id, user.org_id, db)
+    if profile_id:
+        profile_row = await _get_profile_by_id_or_404(candidate_id, profile_id, user.org_id, db)
+    else:
+        profile_row = None
+        if candidate.master_profile_id:
+            res = await db.execute(
+                select(CandidateProfileModel).where(
+                    CandidateProfileModel.id == candidate.master_profile_id,
+                    CandidateProfileModel.candidate_id == candidate_id,
+                    CandidateProfileModel.org_id == user.org_id,
+                )
+            )
+            profile_row = res.scalar_one_or_none()
+        if not profile_row:
+            profile_row = await _get_latest_profile_or_404(candidate_id, user.org_id, db)
+
+    from datetime import datetime, timezone
 
     if profile_row.extraction_status == "approved":
         return ApproveResponse(
             status="approved",
             profile_id=profile_row.id,
-            approved_at=profile_row.approved_at.isoformat(),
-            message="Profile was already approved.",
+            approved_at=profile_row.approved_at.isoformat() if profile_row.approved_at else datetime.now(tz=timezone.utc).isoformat(),
+            message="This profile is already approved.",
         )
 
     # Get all low-confidence field paths
@@ -994,16 +1041,14 @@ async def approve_profile(
         if unreviewed:
             warning_note = f" Approved with {len(unreviewed)} low-confidence item(s) unreviewed."
 
-    from datetime import datetime, timezone
-
     now = datetime.now(tz=timezone.utc)
     profile_row.extraction_status = "approved"
     profile_row.approved_at = now
     profile_row.reviewed_by = user.user_id
 
-    # Update master_profile_id on the Candidate to point to this profile
-    candidate = await _get_candidate_or_404(candidate_id, user.org_id, db)
-    candidate.master_profile_id = profile_row.id
+    # If candidate does not have a master profile yet, default to this approved one
+    if not candidate.master_profile_id:
+        candidate.master_profile_id = profile_row.id
 
     await db.commit()
 
@@ -1013,6 +1058,39 @@ async def approve_profile(
         approved_at=now.isoformat(),
         message=f"Profile approved.{warning_note}",
     )
+
+
+@router.post(
+    "/{candidate_id}/profiles/{profile_id}/approve",
+    response_model=ApproveResponse,
+    summary="Approve a specific candidate profile",
+    description="Marks the specific profile as approved, enabling CV generation.",
+)
+async def approve_specific_profile(
+    candidate_id: str,
+    profile_id: str,
+    user: CurrentUser,
+    db: ScopedDB,
+) -> ApproveResponse:
+    return await _execute_profile_approval(candidate_id, profile_id, user, db)
+
+
+@router.post(
+    "/{candidate_id}/profile/approve",
+    response_model=ApproveResponse,
+    summary="Approve the candidate profile",
+    description=(
+        "Marks the profile as approved, enabling CV generation.\n\n"
+        "Optionally accepts profile_id query parameter to approve a specific profile version."
+    ),
+)
+async def approve_profile(
+    candidate_id: str,
+    user: CurrentUser,
+    db: ScopedDB,
+    profile_id: str | None = Query(None, description="Optional profile ID to approve"),
+) -> ApproveResponse:
+    return await _execute_profile_approval(candidate_id, profile_id, user, db)
 
 
 @router.get(

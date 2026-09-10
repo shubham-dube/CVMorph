@@ -1,12 +1,10 @@
 "use client";
 
-import { use, useEffect, useMemo, useState } from "react";
+import { use, useEffect, useMemo, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
-  ChevronDown,
-  ChevronUp,
   Mail,
   Phone,
   MapPin,
@@ -21,9 +19,12 @@ import {
   X,
   Copy,
   Wand2,
-  AlertTriangle,
   Bot,
   RotateCcw,
+  Star,
+  MoreVertical,
+  FileText,
+  Download,
 } from "lucide-react";
 import { Topbar } from "@/components/layout/Topbar";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -43,30 +44,30 @@ import { getByPath, setByPath, removeAtPath, collectFlaggedFields } from "@/lib/
 import type { CandidateProfile, EmploymentEntry, BluffLevel } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-const BLUFF_OPTIONS: { level: BluffLevel; label: string; badge: string; desc: string }[] = [
+const ENHANCEMENT_OPTIONS: { level: BluffLevel; label: string; badge: string; desc: string }[] = [
   {
     level: "none",
-    label: "Strict Fact Match",
-    badge: "0% Bluff",
-    desc: "Strictly preserves verified facts; only keywords & phrasing are aligned to the JD.",
+    label: "Strict Factual",
+    badge: "100% Verified",
+    desc: "Strictly preserves source candidate facts. Aligns terminology and keywords without adding new details.",
   },
   {
     level: "low",
-    label: "Conservative",
-    badge: "Low Bluff",
-    desc: "Extrapolates related tools and standard engineering practices closely tied to source.",
+    label: "Targeted Alignment",
+    badge: "Conservative",
+    desc: "Bridges terminology to match role requirements while closely adhering to verified experience.",
   },
   {
     level: "medium",
-    label: "Balanced",
+    label: "Strategic Enhancement",
     badge: "Recommended",
-    desc: "Re-frames experience to match JD requirements and bridges minor tech stack gaps.",
+    desc: "Industry standard alignment. Contextualizes accomplishments and bridges adjacent skill gaps for target role.",
   },
   {
     level: "high",
-    label: "Aggressive / Bold",
-    badge: "High Bluff",
-    desc: "Maximizes JD match by generating relevant achievements and deep tech stack alignment.",
+    label: "Broad Positioning",
+    badge: "Comprehensive",
+    desc: "Maximizes scope match by articulating broader leadership, advanced tech capabilities, and stretch competencies.",
   },
 ];
 
@@ -100,38 +101,67 @@ export default function ReviewPage({ params }: { params: Promise<{ id: string }>
 
   const [profile, setProfile] = useState<CandidateProfile | null>(null);
   const [reviewedPaths, setReviewedPaths] = useState<Set<string>>(new Set());
-  const [expandAll, setExpandAll] = useState(false);
   const [approving, setApproving] = useState(false);
-  const [editingHeader, setEditingHeader] = useState(false);
-  const [nameDraft, setNameDraft] = useState("");
-  const [roleDraft, setRoleDraft] = useState("");
   const [isDirty, setIsDirty] = useState(false);
   const [showPreview, setShowPreview] = useState(true);
 
-  // Profile title editing state
-  const [editingTitle, setEditingTitle] = useState(false);
-  const [titleDraft, setTitleDraft] = useState("");
+  // Candidate Header Edit state
+  const [editingHeader, setEditingHeader] = useState(false);
+  const [nameDraft, setNameDraft] = useState("");
+  const [roleDraft, setRoleDraft] = useState("");
+  const [emailDraft, setEmailDraft] = useState("");
+  const [phoneDraft, setPhoneDraft] = useState("");
+  const [locationDraft, setLocationDraft] = useState("");
 
-  // Clone profile modal state
-  const [showCloneModal, setShowCloneModal] = useState(false);
-  const [newTitle, setNewTitle] = useState("");
-  const [newRole, setNewRole] = useState("");
-  const [cloning, setCloning] = useState(false);
+  // Profile actions menu dropdown state
+  const [openMenuProfileId, setOpenMenuProfileId] = useState<string | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Rename modal state
+  const [showRenameModal, setShowRenameModal] = useState(false);
+  const [renameTargetId, setRenameTargetId] = useState<string | null>(null);
+  const [renameDraft, setRenameDraft] = useState("");
+
+  // Unified "New Profile" modal state
+  const [showAddProfileModal, setShowAddProfileModal] = useState(false);
+  const [newProfileTitle, setNewProfileTitle] = useState("");
+  const [newProfileRole, setNewProfileRole] = useState("");
+  const [newProfileContext, setNewProfileContext] = useState("");
+  const [newProfileEnhancement, setNewProfileEnhancement] = useState<BluffLevel>("medium");
+  const [creatingProfile, setCreatingProfile] = useState(false);
+
+  // AI Agent Drawer state
+  const [showAgentDrawer, setShowAgentDrawer] = useState(false);
+  const [previousProfile, setPreviousProfile] = useState<CandidateProfile | null>(null);
 
   useEffect(() => {
     if (data) {
       setProfile(data.profile);
       setNameDraft(data.profile.candidate.full_name || "");
       setRoleDraft(data.profile.candidate.role_title || "");
-      setTitleDraft(data.title || "Primary Profile");
+      setEmailDraft(data.profile.candidate.email || "");
+      setPhoneDraft(data.profile.candidate.phone || "");
+      setLocationDraft(data.profile.candidate.location || "");
       if (!activeProfileId) {
         setActiveProfileId(data.profile_id);
       }
     }
   }, [data, activeProfileId]);
 
+  // Click outside to close profile dropdown menu
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setOpenMenuProfileId(null);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   function handleSwitchProfile(profileId: string) {
     setActiveProfileId(profileId);
+    setOpenMenuProfileId(null);
     if (typeof window !== "undefined") {
       const url = new URL(window.location.href);
       url.searchParams.set("profileId", profileId);
@@ -139,35 +169,115 @@ export default function ReviewPage({ params }: { params: Promise<{ id: string }>
     }
   }
 
-  async function handleSaveTitle() {
-    if (!data?.profile_id || !titleDraft.trim()) {
-      setEditingTitle(false);
+  async function handleSetMasterProfile(profileId: string) {
+    try {
+      await candidatesApi.setMasterProfile(id, profileId);
+      await refetchProfiles();
+      queryClient.invalidateQueries({ queryKey: ["candidate-profiles", id] });
+      toast.success("Set as candidate's default profile.");
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Failed to set default profile.");
+    } finally {
+      setOpenMenuProfileId(null);
+    }
+  }
+
+  async function handleDuplicateProfile(baseProfileId?: string) {
+    const baseId = baseProfileId || activeProfileId || data?.profile_id;
+    const baseProfileObj = profilesData?.items.find((p) => p.id === baseId);
+    const baseTitle = baseProfileObj?.title || data?.title || "Primary Profile";
+    const duplicateTitle = `${baseTitle} (Copy)`;
+
+    try {
+      const res = await candidatesApi.cloneProfile(id, {
+        title: duplicateTitle,
+        base_profile_id: baseId,
+      });
+      await refetchProfiles();
+      handleSwitchProfile(res.profile_id);
+      toast.success(`Duplicated profile as "${res.title}"!`);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Failed to duplicate profile.");
+    } finally {
+      setOpenMenuProfileId(null);
+    }
+  }
+
+  async function handleSaveRename() {
+    if (!renameTargetId || !renameDraft.trim()) {
+      setShowRenameModal(false);
       return;
     }
     try {
-      await candidatesApi.updateProfileTitle(id, data.profile_id, titleDraft.trim());
+      await candidatesApi.updateProfileTitle(id, renameTargetId, renameDraft.trim());
       await refetchProfiles();
-      queryClient.invalidateQueries({ queryKey: ["profile", id, data.profile_id] });
+      queryClient.invalidateQueries({ queryKey: ["profile", id, renameTargetId] });
       toast.success("Profile title updated.");
     } catch {
       toast.error("Failed to update profile title.");
     } finally {
-      setEditingTitle(false);
+      setShowRenameModal(false);
+      setRenameTargetId(null);
     }
   }
 
-  // Tailor profile modal state
-  const [showTailorModal, setShowTailorModal] = useState(false);
-  const [tailorTitle, setTailorTitle] = useState("");
-  const [tailorTargetRole, setTailorTargetRole] = useState("");
-  const [tailorJobDescription, setTailorJobDescription] = useState("");
-  const [tailorPrompt, setTailorPrompt] = useState("");
-  const [tailorBluffLevel, setTailorBluffLevel] = useState<BluffLevel>("medium");
-  const [tailoring, setTailoring] = useState(false);
+  async function handleCreateProfile() {
+    if (!newProfileTitle.trim()) {
+      toast.error("Please enter a title for the new profile.");
+      return;
+    }
+    setCreatingProfile(true);
+    try {
+      let res;
+      if (newProfileContext.trim()) {
+        res = await candidatesApi.tailorProfile(id, {
+          title: newProfileTitle.trim(),
+          target_role: newProfileRole.trim() || undefined,
+          job_description: newProfileContext.trim(),
+          bluff_level: newProfileEnhancement,
+          base_profile_id: activeProfileId || data?.profile_id,
+        });
+      } else {
+        res = await candidatesApi.cloneProfile(id, {
+          title: newProfileTitle.trim(),
+          target_role: newProfileRole.trim() || undefined,
+          base_profile_id: activeProfileId || data?.profile_id,
+          bluff_level: newProfileEnhancement,
+        });
+      }
+      await refetchProfiles();
+      handleSwitchProfile(res.profile_id);
+      setShowAddProfileModal(false);
+      setNewProfileTitle("");
+      setNewProfileRole("");
+      setNewProfileContext("");
+      toast.success(`Created "${res.title}" profile!`);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Failed to create profile.");
+    } finally {
+      setCreatingProfile(false);
+    }
+  }
 
-  // AI Agent Drawer state
-  const [showAgentDrawer, setShowAgentDrawer] = useState(false);
-  const [previousProfile, setPreviousProfile] = useState<CandidateProfile | null>(null);
+  async function handleDeleteProfile(profileId: string) {
+    if (!confirm("Are you sure you want to delete this profile version?")) return;
+    try {
+      await candidatesApi.deleteProfile(id, profileId);
+      await refetchProfiles();
+      setActiveProfileId(null);
+      if (typeof window !== "undefined") {
+        const url = new URL(window.location.href);
+        url.searchParams.delete("profileId");
+        window.history.replaceState(null, "", url.toString());
+      }
+      queryClient.invalidateQueries({ queryKey: ["profile", id] });
+      toast.success("Profile deleted successfully.");
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Failed to delete profile.");
+    } finally {
+      setOpenMenuProfileId(null);
+    }
+  }
 
   function handleProfileUpdatedByAgent(newProfile: CandidateProfile) {
     if (profile) {
@@ -201,88 +311,13 @@ export default function ReviewPage({ params }: { params: Promise<{ id: string }>
     }
   }
 
-  async function handleCloneProfile() {
-    if (!newTitle.trim()) {
-      toast.error("Please provide a title for the new profile.");
-      return;
-    }
-    setCloning(true);
-    try {
-      const res = await candidatesApi.cloneProfile(id, {
-        title: newTitle.trim(),
-        target_role: newRole.trim() || undefined,
-        base_profile_id: data?.profile_id,
-      });
-      await refetchProfiles();
-      handleSwitchProfile(res.profile_id);
-      setShowCloneModal(false);
-      setNewTitle("");
-      setNewRole("");
-      toast.success(`Created "${res.title}" profile!`);
-    } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Failed to create profile version.");
-    } finally {
-      setCloning(false);
-    }
-  }
-
-  async function handleTailorProfile() {
-    if (!tailorTitle.trim()) {
-      toast.error("Please provide a title for the tailored profile.");
-      return;
-    }
-    if (!tailorJobDescription.trim()) {
-      toast.error("Please paste the target job description.");
-      return;
-    }
-    setTailoring(true);
-    try {
-      const res = await candidatesApi.tailorProfile(id, {
-        title: tailorTitle.trim(),
-        target_role: tailorTargetRole.trim() || undefined,
-        job_description: tailorJobDescription.trim(),
-        custom_prompt: tailorPrompt.trim() || undefined,
-        bluff_level: tailorBluffLevel,
-        base_profile_id: data?.profile_id,
-      });
-      await refetchProfiles();
-      handleSwitchProfile(res.profile_id);
-      setShowTailorModal(false);
-      setTailorJobDescription("");
-      setTailorPrompt("");
-      toast.success(`Generated tailored profile "${res.title}"!`);
-    } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Failed to tailor profile.");
-    } finally {
-      setTailoring(false);
-    }
-  }
-
-  async function handleDeleteProfile(profileId: string) {
-    if (!confirm("Are you sure you want to delete this profile version?")) return;
-    try {
-      await candidatesApi.deleteProfile(id, profileId);
-      await refetchProfiles();
-      setActiveProfileId(null);
-      if (typeof window !== "undefined") {
-        const url = new URL(window.location.href);
-        url.searchParams.delete("profileId");
-        window.history.replaceState(null, "", url.toString());
-      }
-      queryClient.invalidateQueries({ queryKey: ["profile", id] });
-      toast.success("Profile version deleted.");
-    } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Failed to delete profile.");
-    }
-  }
-
   useEffect(() => {
     if (events) setReviewedPaths(new Set(events.map((e) => e.field_path)));
   }, [events]);
 
   const flagged = useMemo(() => (profile ? collectFlaggedFields(profile) : []), [profile]);
   const reviewedCount = flagged.filter((f) => reviewedPaths.has(f.path)).length;
-  const alreadyApproved = data?.extraction_status === "approved";
+  const isCurrentProfileApproved = data?.extraction_status === "approved";
 
   const patchMutation = useMutation({
     mutationFn: (vars: {
@@ -386,11 +421,13 @@ export default function ReviewPage({ params }: { params: Promise<{ id: string }>
 
   async function handleApprove() {
     setApproving(true);
+    const targetProfileId = activeProfileId || data?.profile_id;
     try {
-      const res = await candidatesApi.approveProfile(id);
-      toast.success(res.message || "Profile approved. Ready for generation.");
+      const res = await candidatesApi.approveProfile(id, targetProfileId || undefined);
+      toast.success(res.message || "Profile approved for export.");
       setIsDirty(false);
-      queryClient.invalidateQueries({ queryKey: ["profile", id] });
+      queryClient.invalidateQueries({ queryKey: ["profile", id, targetProfileId] });
+      queryClient.invalidateQueries({ queryKey: ["candidate-profiles", id] });
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Couldn't approve this profile.");
     } finally {
@@ -402,17 +439,20 @@ export default function ReviewPage({ params }: { params: Promise<{ id: string }>
     if (!profile) return;
     let next = setByPath(profile, "candidate.full_name", nameDraft.trim());
     next = setByPath(next, "candidate.role_title", roleDraft.trim());
-    applyChange("candidate.full_name", "edit", next, profile.candidate.full_name, nameDraft.trim());
+    next = setByPath(next, "candidate.email", emailDraft.trim() || null);
+    next = setByPath(next, "candidate.phone", phoneDraft.trim() || null);
+    next = setByPath(next, "candidate.location", locationDraft.trim() || null);
+    applyChange("candidate", "edit", next, profile.candidate, next.candidate);
     setEditingHeader(false);
-    toast.success("Candidate header updated.");
+    toast.success("Candidate contact & header updated.");
   }
 
   if (isLoading) {
     return (
       <>
-        <Topbar title="Review & Studio" />
+        <Topbar title="Candidate Review & Studio" />
         <main className="flex-1 p-6 max-w-7xl w-full mx-auto space-y-4">
-          <Skeleton className="h-24 w-full rounded-[var(--radius-lg)]" />
+          <Skeleton className="h-20 w-full rounded-[var(--radius-lg)]" />
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
             <div className="xl:col-span-7 space-y-4">
               <Skeleton className="h-40 w-full rounded-[var(--radius-lg)]" />
@@ -430,7 +470,7 @@ export default function ReviewPage({ params }: { params: Promise<{ id: string }>
   if (isError || !profile) {
     return (
       <>
-        <Topbar title="Review & Studio" />
+        <Topbar title="Candidate Review & Studio" />
         <main className="flex-1 p-6 max-w-3xl w-full mx-auto">
           <p className="text-sm text-danger">Couldn&apos;t load this candidate&apos;s profile.</p>
         </main>
@@ -438,9 +478,13 @@ export default function ReviewPage({ params }: { params: Promise<{ id: string }>
     );
   }
 
+  const activeProfile = profilesData?.items.find(
+    (p) => p.id === (activeProfileId || data?.profile_id)
+  );
+
   return (
     <>
-      <Topbar title="Review & Studio" />
+      <Topbar title="Candidate Review & Studio" />
       <main className="flex-1 px-6 pt-0 pb-12 max-w-7xl w-full mx-auto">
         <ApproveBar
           totalFlagged={flagged.length}
@@ -449,165 +493,193 @@ export default function ReviewPage({ params }: { params: Promise<{ id: string }>
           onJumpToNext={jumpToNext}
           approving={approving}
           candidateName={profile.candidate.full_name}
-          alreadyApproved={alreadyApproved}
+          profileTitle={data?.title || "Primary Profile"}
+          alreadyApproved={isCurrentProfileApproved}
           isDirty={isDirty}
         />
 
-        {/* Multi-Profile Switcher Bar */}
-        <div className="rounded-[var(--radius-lg)] border border-border bg-surface p-3 mb-4 shadow-xs">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            {/* Profile Selection Pills */}
+        {/* Streamlined Profile Navigation Bar */}
+        <div className="rounded-[var(--radius-lg)] border border-border bg-surface px-3 py-2 mb-4 shadow-xs">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            {/* Profile Tab Pills */}
             <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="text-xs font-semibold uppercase tracking-wider text-text-faint mr-1 flex items-center gap-1">
+              <span className="text-xs font-semibold text-text-faint mr-1 flex items-center gap-1">
                 <Layers className="h-3.5 w-3.5 text-accent" /> Profiles:
               </span>
 
               {profilesData?.items && profilesData.items.length > 0 ? (
                 profilesData.items.map((p) => {
                   const isActive = p.id === (activeProfileId || data?.profile_id);
+                  const isMenuOpen = openMenuProfileId === p.id;
                   return (
-                    <button
-                      key={p.id}
-                      onClick={() => handleSwitchProfile(p.id)}
-                      className={cn(
-                        "px-3 py-1 rounded-[var(--radius-sm)] text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer",
-                        isActive
-                          ? "bg-accent text-white shadow-sm"
-                          : "bg-bg-elevated hover:bg-surface-hover text-text-muted hover:text-text border border-border"
-                      )}
-                    >
-                      <span>{p.title}</span>
-                      {p.is_master && <span className="opacity-80 text-[10px]">★</span>}
-                      {p.bluff_level && p.bluff_level !== "none" && (
-                        <span
-                          className={cn(
-                            "text-[10px] px-1 rounded font-normal",
-                            isActive ? "bg-white/20 text-white" : "bg-purple-500/10 text-purple-400"
-                          )}
+                    <div key={p.id} className="relative inline-flex items-center">
+                      <button
+                        onClick={() => handleSwitchProfile(p.id)}
+                        className={cn(
+                          "pl-3 pr-2 py-1 rounded-[var(--radius-sm)] text-xs font-medium transition-all flex items-center gap-1.5 cursor-pointer",
+                          isActive
+                            ? "bg-accent text-white shadow-xs font-semibold"
+                            : "bg-bg-elevated hover:bg-surface-hover text-text-muted hover:text-text border border-border"
+                        )}
+                      >
+                        <span className="truncate max-w-[160px]">{p.title}</span>
+                        {p.is_master && (
+                          <span
+                            className={cn(
+                              "text-[10px] px-1 py-0.2 rounded font-semibold",
+                              isActive ? "bg-white/20 text-white" : "bg-amber-500/10 text-amber-500 border border-amber-500/30"
+                            )}
+                            title="Default master profile for candidate"
+                          >
+                            ★ Default
+                          </span>
+                        )}
+                        {p.extraction_status === "approved" && (
+                          <span
+                            className={cn(
+                              "text-[10px] font-bold px-1 rounded",
+                              isActive ? "bg-emerald-400/20 text-emerald-100" : "text-emerald-500"
+                            )}
+                            title="Approved for export"
+                          >
+                            ✓
+                          </span>
+                        )}
+                      </button>
+
+                      {/* Dropdown menu trigger for this profile */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setOpenMenuProfileId(isMenuOpen ? null : p.id);
+                        }}
+                        className={cn(
+                          "h-6 w-6 ml-0.5 rounded flex items-center justify-center transition-colors cursor-pointer",
+                          isActive
+                            ? "text-white/80 hover:text-white hover:bg-white/20"
+                            : "text-text-faint hover:text-text hover:bg-surface-hover"
+                        )}
+                        title="Profile options (Rename, Set Default, Duplicate, Delete)"
+                      >
+                        <MoreVertical className="h-3.5 w-3.5" />
+                      </button>
+
+                      {/* Dropdown Menu Popup */}
+                      {isMenuOpen && (
+                        <div
+                          ref={menuRef}
+                          className="absolute left-0 top-full mt-1.5 z-40 w-48 rounded-[var(--radius-md)] border border-border bg-surface p-1 shadow-xl animate-fade-in"
                         >
-                          {p.bluff_level}
-                        </span>
+                          <button
+                            onClick={() => {
+                              setRenameTargetId(p.id);
+                              setRenameDraft(p.title);
+                              setShowRenameModal(true);
+                              setOpenMenuProfileId(null);
+                            }}
+                            className="w-full text-left flex items-center gap-2 px-2.5 py-1.5 text-xs text-text hover:bg-surface-hover rounded-[var(--radius-sm)] transition-colors cursor-pointer"
+                          >
+                            <Pencil className="h-3 w-3 text-text-faint" />
+                            <span>Rename Profile</span>
+                          </button>
+
+                          <button
+                            onClick={() => handleDuplicateProfile(p.id)}
+                            className="w-full text-left flex items-center gap-2 px-2.5 py-1.5 text-xs text-text hover:bg-surface-hover rounded-[var(--radius-sm)] transition-colors cursor-pointer"
+                          >
+                            <Copy className="h-3 w-3 text-text-faint" />
+                            <span>Duplicate Profile</span>
+                          </button>
+
+                          {!p.is_master && (
+                            <button
+                              onClick={() => handleSetMasterProfile(p.id)}
+                              className="w-full text-left flex items-center gap-2 px-2.5 py-1.5 text-xs text-text hover:bg-surface-hover rounded-[var(--radius-sm)] transition-colors cursor-pointer"
+                            >
+                              <Star className="h-3 w-3 text-amber-500" />
+                              <span>Set as Default</span>
+                            </button>
+                          )}
+
+                          {profilesData.items.length > 1 && (
+                            <button
+                              onClick={() => handleDeleteProfile(p.id)}
+                              className="w-full text-left flex items-center gap-2 px-2.5 py-1.5 text-xs text-danger hover:bg-danger-soft rounded-[var(--radius-sm)] transition-colors cursor-pointer"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                              <span>Delete Profile</span>
+                            </button>
+                          )}
+                        </div>
                       )}
-                    </button>
+                    </div>
                   );
                 })
               ) : (
                 <span className="px-3 py-1 rounded-[var(--radius-sm)] text-xs font-semibold bg-accent text-white">
-                  {data?.title || "Primary Profile"} ★
+                  {data?.title || "Primary Profile"} ★ Default
                 </span>
               )}
 
+              {/* Single Clean Add Profile Trigger */}
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => {
-                  setNewTitle(`${data?.title || "Primary Profile"} (Variation)`);
-                  setNewRole(profile.candidate.role_title || "");
-                  setShowCloneModal(true);
+                  setNewProfileTitle(
+                    `${profile?.candidate?.role_title || data?.title || "Profile"} (Variation)`
+                  );
+                  setNewProfileRole(profile?.candidate?.role_title || "");
+                  setNewProfileContext("");
+                  setNewProfileEnhancement("medium");
+                  setShowAddProfileModal(true);
                 }}
                 className="text-xs h-7 px-2.5 text-accent hover:text-accent-strong hover:bg-accent-soft"
-                title="Create a new profile version for this candidate"
+                title="Create or align a new candidate profile"
               >
-                <Plus className="h-3.5 w-3.5 mr-1" /> New Version
-              </Button>
-
-              <Button
-                variant="default"
-                size="sm"
-                onClick={() => {
-                  setTailorTitle(
-                    `${profile?.candidate?.role_title || data?.title || "Role"} - Tailored`
-                  );
-                  setTailorTargetRole(profile?.candidate?.role_title || "");
-                  setTailorJobDescription("");
-                  setTailorPrompt("");
-                  setTailorBluffLevel("medium");
-                  setShowTailorModal(true);
-                }}
-                className="text-xs h-7 px-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-medium shadow-xs"
-                title="Generate an AI-tailored profile for a Job Description with controlled bluff"
-              >
-                <Sparkles className="h-3.5 w-3.5 mr-1 text-purple-200" /> Tailor with AI
+                <Plus className="h-3.5 w-3.5 mr-1" /> New Profile
               </Button>
             </div>
 
-            {/* Active Profile Title Inline Editor & Actions */}
+            {/* Quick Actions for Current Profile */}
             <div className="flex items-center gap-2">
-              {data?.bluff_level && data.bluff_level !== "none" && (
-                <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30 shadow-xs">
-                  <AlertTriangle className="h-3 w-3 text-amber-500" />
-                  Bluff: {data.bluff_level.toUpperCase()}
-                </span>
-              )}
-              {data?.target_role && (
-                <span className="text-[11px] text-text-muted bg-surface px-2 py-0.5 rounded border border-border hidden md:inline-block">
-                  Target: {data.target_role}
-                </span>
-              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => handleDuplicateProfile()}
+                className="text-xs h-7 px-2 text-text-muted hover:text-text hover:bg-bg-elevated"
+                title="Quick 1-click duplicate of current profile"
+              >
+                <Copy className="h-3 w-3 mr-1 text-text-faint" /> Duplicate
+              </Button>
 
-              {editingTitle ? (
-                <div className="flex items-center gap-1.5 animate-fade-in">
-                  <Input
-                    value={titleDraft}
-                    onChange={(e) => setTitleDraft(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") handleSaveTitle();
-                      if (e.key === "Escape") setEditingTitle(false);
-                    }}
-                    autoFocus
-                    className="h-7 text-xs w-48 bg-surface"
-                    placeholder="Profile title..."
-                  />
-                  <Button size="sm" onClick={handleSaveTitle} className="h-7 px-2 text-xs font-medium">
-                    <Check className="h-3 w-3" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setEditingTitle(false)}
-                    className="h-7 px-2 text-xs"
-                  >
-                    <X className="h-3 w-3" />
-                  </Button>
-                </div>
+              {activeProfile?.is_master ? (
+                <span className="text-[11px] text-amber-600 dark:text-amber-400 bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded-full font-medium flex items-center gap-1">
+                  <Star className="h-3 w-3 fill-amber-500 text-amber-500" /> Default Profile
+                </span>
               ) : (
-                <div className="flex items-center gap-1.5 bg-bg-elevated/70 px-2.5 py-1 rounded-[var(--radius-sm)] border border-border">
-                  <span className="text-xs text-text-faint">Active:</span>
-                  <span className="text-xs font-semibold text-text truncate max-w-[200px]" title={data?.title || "Primary Profile"}>
-                    {data?.title || "Primary Profile"}
-                  </span>
-                  <button
-                    onClick={() => {
-                      setTitleDraft(data?.title || "Primary Profile");
-                      setEditingTitle(true);
-                    }}
-                    className="p-1 rounded text-text-faint hover:text-text hover:bg-surface transition-colors cursor-pointer"
-                    title="Rename this profile title"
-                  >
-                    <Pencil className="h-3 w-3" />
-                  </button>
-
-                  {profilesData?.items && profilesData.items.length > 1 && (
-                    <button
-                      onClick={() => data?.profile_id && handleDeleteProfile(data.profile_id)}
-                      className="p-1 rounded text-text-faint hover:text-danger hover:bg-danger-soft transition-colors cursor-pointer ml-1"
-                      title="Delete this profile version"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </button>
-                  )}
-                </div>
+                <button
+                  onClick={() => data?.profile_id && handleSetMasterProfile(data.profile_id)}
+                  className="text-[11px] text-text-faint hover:text-text hover:bg-bg-elevated px-2 py-0.5 rounded border border-border/80 transition-colors cursor-pointer"
+                  title="Make this profile open by default for this candidate"
+                >
+                  Set as Default
+                </button>
               )}
             </div>
           </div>
         </div>
 
-        {/* Studio View Mode Bar */}
+        {/* Studio Workspace Header & Actions */}
         <div className="flex items-center justify-between gap-4 mb-4 flex-wrap">
           <div className="flex items-center gap-2">
-            <span className="text-xs text-text-muted font-medium">
-              Workspace View: <span className="text-text font-semibold">{showPreview ? "Split Studio" : "Full-Width Editor"}</span>
-            </span>
+            <span className="text-xs text-text-muted">Active Profile:</span>
+            <span className="text-xs font-bold text-text">{data?.title || "Primary Profile"}</span>
+            {data?.bluff_level && data.bluff_level !== "none" && (
+              <span className="text-[10px] font-semibold text-purple-600 dark:text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded-full border border-purple-500/20">
+                {data.bluff_level === "low" ? "Targeted Alignment" : data.bluff_level === "medium" ? "Strategic Enhancement" : "Broad Positioning"}
+              </span>
+            )}
           </div>
 
           <div className="flex items-center gap-2">
@@ -616,10 +688,10 @@ export default function ReviewPage({ params }: { params: Promise<{ id: string }>
               size="sm"
               onClick={() => setShowAgentDrawer(true)}
               className="text-xs h-8 px-3 bg-gradient-to-r from-purple-600 via-indigo-600 to-accent hover:from-purple-500 hover:to-accent text-white font-semibold shadow-xs flex items-center gap-1.5 cursor-pointer"
-              title="Open AI Profile Copilot to chat and modify this CV"
+              title="Open AI Resume Consultant to discuss or modify this candidate"
             >
               <Bot className="h-4 w-4" />
-              <span>AI Copilot</span>
+              <span>AI Consultant</span>
               <span className="flex h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
             </Button>
 
@@ -632,25 +704,25 @@ export default function ReviewPage({ params }: { params: Promise<{ id: string }>
                 title="Revert the last AI change"
               >
                 <RotateCcw className="h-3.5 w-3.5" />
-                <span>Undo AI Edit</span>
+                <span>Undo Edit</span>
               </Button>
             )}
 
             <Button
-              variant="outline"
+              variant={showPreview ? "outline" : "default"}
               size="sm"
               onClick={() => setShowPreview(!showPreview)}
-              className="text-xs h-8"
+              className="text-xs h-8 font-semibold"
             >
               {showPreview ? (
                 <>
                   <PanelRightClose className="h-3.5 w-3.5 mr-1.5" />
-                  Collapse Preview
+                  Hide Document Preview
                 </>
               ) : (
                 <>
-                  <PanelRightOpen className="h-3.5 w-3.5 mr-1.5" />
-                  Open Live Preview Studio
+                  <Sparkles className="h-3.5 w-3.5 mr-1.5 text-purple-200" />
+                  Generate Branded Resume
                 </>
               )}
             </Button>
@@ -659,93 +731,119 @@ export default function ReviewPage({ params }: { params: Promise<{ id: string }>
 
         {/* Split Studio Layout */}
         <div className={`grid grid-cols-1 ${showPreview ? "xl:grid-cols-12 gap-8" : "max-w-4xl mx-auto"} items-start`}>
-          {/* Left Column: Editor */}
+          {/* Left Column: Candidate Structured Editor */}
           <div className={`${showPreview ? "xl:col-span-7" : "w-full"} space-y-6`}>
-            {/* Candidate Header Card */}
+            {/* Candidate Identity & Contact Header Card */}
             <div className="rounded-[var(--radius-lg)] border border-border bg-surface p-5 shadow-xs">
               {editingHeader ? (
-                <div className="space-y-3">
-                  <div>
-                    <label className="text-[11px] font-medium text-text-muted mb-1 block">Full Name</label>
-                    <Input
-                      value={nameDraft}
-                      onChange={(e) => setNameDraft(e.target.value)}
-                      placeholder="Candidate full name"
-                    />
+                <div className="space-y-3.5 animate-fade-in">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[11px] font-semibold text-text-muted mb-1 block">Full Name</label>
+                      <Input
+                        value={nameDraft}
+                        onChange={(e) => setNameDraft(e.target.value)}
+                        placeholder="Candidate full name"
+                        className="text-xs h-9 bg-bg"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-semibold text-text-muted mb-1 block">
+                        Target Professional Title
+                      </label>
+                      <Input
+                        value={roleDraft}
+                        onChange={(e) => setRoleDraft(e.target.value)}
+                        placeholder="e.g. Senior Software Engineer"
+                        className="text-xs h-9 bg-bg"
+                      />
+                    </div>
                   </div>
-                  <div>
-                    <label className="text-[11px] font-medium text-text-muted mb-1 block">
-                      Target Role / Title (Cover Page & Header)
-                    </label>
-                    <Input
-                      value={roleDraft}
-                      onChange={(e) => setRoleDraft(e.target.value)}
-                      placeholder="e.g. Senior Full Stack Engineer"
-                    />
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="text-[11px] font-semibold text-text-muted mb-1 block">Email Address</label>
+                      <Input
+                        value={emailDraft}
+                        onChange={(e) => setEmailDraft(e.target.value)}
+                        placeholder="candidate@example.com"
+                        className="text-xs h-9 bg-bg"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-semibold text-text-muted mb-1 block">Phone Number</label>
+                      <Input
+                        value={phoneDraft}
+                        onChange={(e) => setPhoneDraft(e.target.value)}
+                        placeholder="+1 (555) 000-0000"
+                        className="text-xs h-9 bg-bg"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-semibold text-text-muted mb-1 block">Location</label>
+                      <Input
+                        value={locationDraft}
+                        onChange={(e) => setLocationDraft(e.target.value)}
+                        placeholder="City, Country"
+                        className="text-xs h-9 bg-bg"
+                      />
+                    </div>
                   </div>
-                  <div className="flex gap-2 justify-end pt-1">
+
+                  <div className="flex gap-2 justify-end pt-1 border-t border-border">
                     <Button variant="ghost" size="sm" onClick={() => setEditingHeader(false)}>
                       Cancel
                     </Button>
-                    <Button size="sm" onClick={saveHeader}>
-                      <Check className="h-3.5 w-3.5" /> Save Details
+                    <Button size="sm" onClick={saveHeader} className="font-semibold text-xs">
+                      <Check className="h-3.5 w-3.5 mr-1" /> Save Contact & Details
                     </Button>
                   </div>
                 </div>
               ) : (
-                <div className="flex items-start justify-between">
-                  <div>
+                <div className="flex items-start justify-between gap-4">
+                  <div className="space-y-1">
                     <h2 className="text-xl font-bold text-text tracking-tight">{profile.candidate.full_name}</h2>
-                    <p className="text-sm text-accent font-semibold mt-0.5">{profile.candidate.role_title}</p>
-                    <div className="flex items-center gap-4 mt-2.5 text-xs text-text-muted flex-wrap">
-                      {profile.candidate.email && (
-                        <span className="flex items-center gap-1">
-                          <Mail className="h-3 w-3" /> {profile.candidate.email}
-                        </span>
-                      )}
-                      {profile.candidate.phone && (
-                        <span className="flex items-center gap-1">
-                          <Phone className="h-3 w-3" /> {profile.candidate.phone}
-                        </span>
-                      )}
-                      {profile.candidate.location && (
-                        <span className="flex items-center gap-1">
-                          <MapPin className="h-3 w-3" /> {profile.candidate.location}
-                        </span>
-                      )}
+                    <p className="text-sm text-accent font-semibold">{profile.candidate.role_title}</p>
+                    <div className="flex items-center gap-4 pt-1.5 text-xs text-text-muted flex-wrap">
+                      <span className="flex items-center gap-1.5">
+                        <Mail className="h-3.5 w-3.5 text-text-faint" />
+                        {profile.candidate.email || <span className="italic text-text-faint">No email added</span>}
+                      </span>
+                      <span className="flex items-center gap-1.5">
+                        <Phone className="h-3.5 w-3.5 text-text-faint" />
+                        {profile.candidate.phone || <span className="italic text-text-faint">No phone added</span>}
+                      </span>
+                      <span className="flex items-center gap-1.5">
+                        <MapPin className="h-3.5 w-3.5 text-text-faint" />
+                        {profile.candidate.location || <span className="italic text-text-faint">No location added</span>}
+                      </span>
                     </div>
                   </div>
-                  <div className="flex flex-col items-end gap-2">
+
+                  <div className="flex flex-col items-end gap-2 shrink-0">
                     <ConfidenceBadge confidence={profile.meta.overall_confidence} />
                     <button
                       onClick={() => {
-                        setNameDraft(profile.candidate.full_name);
-                        setRoleDraft(profile.candidate.role_title);
+                        setNameDraft(profile.candidate.full_name || "");
+                        setRoleDraft(profile.candidate.role_title || "");
+                        setEmailDraft(profile.candidate.email || "");
+                        setPhoneDraft(profile.candidate.phone || "");
+                        setLocationDraft(profile.candidate.location || "");
                         setEditingHeader(true);
                       }}
-                      className="text-xs text-text-faint hover:text-text flex items-center gap-1 p-1 rounded hover:bg-surface-hover transition-colors"
+                      className="text-xs text-text-faint hover:text-text flex items-center gap-1 p-1 rounded hover:bg-surface-hover transition-colors cursor-pointer"
+                      title="Edit candidate contact details"
                     >
-                      <Pencil className="h-3 w-3" /> Edit
+                      <Pencil className="h-3 w-3" /> Edit Info
                     </button>
                   </div>
                 </div>
               )}
             </div>
 
-            {/* Expand / Collapse toggle */}
-            <div className="flex justify-end">
-              <button
-                onClick={() => setExpandAll((s) => !s)}
-                className="flex items-center gap-1 text-xs text-text-muted hover:text-text cursor-pointer transition-colors"
-              >
-                {expandAll ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-                {expandAll ? "Collapse reviewed items" : "Expand all review items"}
-              </button>
-            </div>
-
-            {/* Career summary */}
+            {/* Career Summary */}
             <Section title="Career Summary">
-              <div className="space-y-1.5 bg-surface rounded-[var(--radius-lg)] border border-border p-4">
+              <div className="space-y-1.5 bg-surface rounded-[var(--radius-lg)] border border-border p-4 shadow-xs">
                 {profile.career_summary.bullets.map((b, i) => {
                   const path = `career_summary.bullets.${i}.text`;
                   return (
@@ -757,7 +855,6 @@ export default function ReviewPage({ params }: { params: Promise<{ id: string }>
                       sourceType={b.source_type}
                       evidence={b.evidence}
                       reviewed={reviewedPaths.has(path)}
-                      forceExpanded={expandAll}
                       onConfirm={() => handleConfirm(path)}
                       onEdit={(t) => handleEdit(path, t)}
                       onRemove={() => handleRemove(path)}
@@ -767,7 +864,7 @@ export default function ReviewPage({ params }: { params: Promise<{ id: string }>
               </div>
             </Section>
 
-            {/* Technical skills */}
+            {/* Technical Capabilities */}
             <Section title="Technical Capabilities">
               <div className="grid sm:grid-cols-2 gap-3">
                 {profile.technical_skills.groups.map((g, i) => {
@@ -791,7 +888,7 @@ export default function ReviewPage({ params }: { params: Promise<{ id: string }>
               </div>
             </Section>
 
-            {/* Education */}
+            {/* Educational Qualifications & Certifications */}
             <Section
               title={
                 profile.education.has_certifications
@@ -799,7 +896,7 @@ export default function ReviewPage({ params }: { params: Promise<{ id: string }>
                   : "Educational Qualifications"
               }
             >
-              <div className="space-y-1.5 bg-surface rounded-[var(--radius-lg)] border border-border p-4">
+              <div className="space-y-1.5 bg-surface rounded-[var(--radius-lg)] border border-border p-4 shadow-xs">
                 {profile.education.items.map((it, i) => {
                   const path = `education.items.${i}.text`;
                   return (
@@ -811,7 +908,6 @@ export default function ReviewPage({ params }: { params: Promise<{ id: string }>
                       sourceType={it.source_type}
                       evidence={it.evidence}
                       reviewed={reviewedPaths.has(path)}
-                      forceExpanded={expandAll}
                       onConfirm={() => handleConfirm(path)}
                       onEdit={(t) => handleEdit(path, t)}
                       onRemove={() => handleRemove(path)}
@@ -821,7 +917,7 @@ export default function ReviewPage({ params }: { params: Promise<{ id: string }>
               </div>
             </Section>
 
-            {/* Employment */}
+            {/* Employment Summary & Client Projects */}
             <Section title="Employment Summary & Client Projects">
               <div className="space-y-4">
                 {profile.employment.map((job, ji) => (
@@ -850,102 +946,31 @@ export default function ReviewPage({ params }: { params: Promise<{ id: string }>
               <PreviewPanel
                 candidateId={id}
                 candidateName={profile.candidate.full_name}
+                profileId={data?.profile_id || activeProfileId || undefined}
+                profileTitle={data?.title || "Primary Profile"}
                 onClose={() => setShowPreview(false)}
               />
             </div>
           )}
         </div>
 
-        {/* Clone / New Profile Modal */}
-        {showCloneModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fade-in">
-            <div className="w-full max-w-md rounded-[var(--radius-lg)] border border-border bg-surface p-6 shadow-2xl space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent-soft text-accent">
-                    <Copy className="h-4 w-4" />
-                  </div>
-                  <h3 className="text-sm font-bold text-text">New Profile Version</h3>
-                </div>
-                <button
-                  onClick={() => setShowCloneModal(false)}
-                  className="p-1 rounded text-text-faint hover:text-text"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-
-              <p className="text-xs text-text-muted leading-relaxed">
-                Create a distinct version of this candidate&apos;s CV tailored for a specific role or industry. All base verified facts will be preserved.
-              </p>
-
-              <div className="space-y-3 pt-1">
-                <div>
-                  <label className="text-[11px] font-semibold text-text-muted block mb-1">
-                    Profile Title (e.g. Senior Backend - Fintech)
-                  </label>
-                  <Input
-                    value={newTitle}
-                    onChange={(e) => setNewTitle(e.target.value)}
-                    placeholder="e.g. Full Stack Tech Lead"
-                    autoFocus
-                    className="text-xs h-9 bg-bg"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-[11px] font-semibold text-text-muted block mb-1">
-                    Target Role Title (optional, for cover page)
-                  </label>
-                  <Input
-                    value={newRole}
-                    onChange={(e) => setNewRole(e.target.value)}
-                    placeholder="e.g. Staff Software Engineer"
-                    className="text-xs h-9 bg-bg"
-                  />
-                </div>
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowCloneModal(false)}
-                  disabled={cloning}
-                  className="text-xs"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  size="sm"
-                  onClick={handleCloneProfile}
-                  disabled={cloning || !newTitle.trim()}
-                  className="text-xs font-semibold"
-                >
-                  {cloning ? "Creating..." : "Create Profile Version"}
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Tailor with AI Modal */}
-        {showTailorModal && (
+        {/* Unified "New Profile" Creation & Alignment Modal */}
+        {showAddProfileModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fade-in overflow-y-auto">
-            <div className="w-full max-w-xl rounded-[var(--radius-lg)] border border-border bg-surface p-6 shadow-2xl space-y-4 my-8 max-h-[90vh] overflow-y-auto">
+            <div className="w-full max-w-lg rounded-[var(--radius-lg)] border border-border bg-surface p-6 shadow-2xl space-y-4 my-8 max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-purple-500/10 text-purple-600 dark:text-purple-400">
-                    <Wand2 className="h-5 w-5" />
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent-soft text-accent">
+                    <Sparkles className="h-5 w-5" />
                   </div>
                   <div>
-                    <h3 className="text-sm font-bold text-text">Tailor Profile for Target Job</h3>
-                    <p className="text-xs text-text-muted">AI-powered JD alignment with fine-grained bluff control</p>
+                    <h3 className="text-sm font-bold text-text">Create Candidate Profile</h3>
+                    <p className="text-xs text-text-muted">Create a tailored version or targeted variation for this candidate</p>
                   </div>
                 </div>
                 <button
-                  onClick={() => !tailoring && setShowTailorModal(false)}
-                  disabled={tailoring}
+                  onClick={() => !creatingProfile && setShowAddProfileModal(false)}
+                  disabled={creatingProfile}
                   className="p-1 rounded text-text-faint hover:text-text cursor-pointer"
                 >
                   <X className="h-4 w-4" />
@@ -956,131 +981,156 @@ export default function ReviewPage({ params }: { params: Promise<{ id: string }>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="text-[11px] font-semibold text-text-muted block mb-1">
-                      New Profile Title <span className="text-accent">*</span>
+                      Profile Title <span className="text-accent">*</span>
                     </label>
                     <Input
-                      value={tailorTitle}
-                      onChange={(e) => setTailorTitle(e.target.value)}
-                      placeholder="e.g. Lead Backend - Fintech"
+                      value={newProfileTitle}
+                      onChange={(e) => setNewProfileTitle(e.target.value)}
+                      placeholder="e.g. Full Stack - FinTech Focus"
                       className="text-xs h-9 bg-bg"
-                      disabled={tailoring}
+                      disabled={creatingProfile}
+                      autoFocus
                     />
                   </div>
 
                   <div>
                     <label className="text-[11px] font-semibold text-text-muted block mb-1">
-                      Target Role Title (Cover page)
+                      Target Role Title (Optional)
                     </label>
                     <Input
-                      value={tailorTargetRole}
-                      onChange={(e) => setTailorTargetRole(e.target.value)}
-                      placeholder="e.g. Staff Software Engineer"
+                      value={newProfileRole}
+                      onChange={(e) => setNewProfileRole(e.target.value)}
+                      placeholder="Leave blank to inherit"
                       className="text-xs h-9 bg-bg"
-                      disabled={tailoring}
+                      disabled={creatingProfile}
                     />
                   </div>
                 </div>
 
                 <div>
                   <label className="text-[11px] font-semibold text-text-muted block mb-1">
-                    Target Job Description (JD) <span className="text-accent">*</span>
+                    Alignment Context & Guidelines (Optional)
                   </label>
                   <Textarea
-                    value={tailorJobDescription}
-                    onChange={(e) => setTailorJobDescription(e.target.value)}
-                    placeholder="Paste requirements, tech stack, responsibilities, or role description..."
+                    value={newProfileContext}
+                    onChange={(e) => setNewProfileContext(e.target.value)}
+                    placeholder="Paste a target job description, key role requirements, or specific positioning guidelines (e.g. 'Highlight AWS and Kubernetes leadership'). Leave empty to duplicate directly."
                     rows={4}
                     className="text-xs bg-bg"
-                    disabled={tailoring}
+                    disabled={creatingProfile}
                   />
+                  <p className="text-[11px] text-text-faint mt-1">
+                    If provided, AI will optimize phrasing and skill emphasis against this context.
+                  </p>
                 </div>
 
-                <div>
-                  <label className="text-[11px] font-semibold text-text-muted block mb-1.5">
-                    Controlled Bluff / Creativity Level
-                  </label>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {BLUFF_OPTIONS.map((opt) => {
-                      const selected = tailorBluffLevel === opt.level;
-                      return (
-                        <button
-                          key={opt.level}
-                          type="button"
-                          onClick={() => setTailorBluffLevel(opt.level)}
-                          disabled={tailoring}
-                          className={cn(
-                            "text-left p-2.5 rounded-[var(--radius-md)] border transition-all cursor-pointer",
-                            selected
-                              ? "border-purple-500 bg-purple-500/10 shadow-xs"
-                              : "border-border bg-bg/50 hover:border-border-strong hover:bg-bg"
-                          )}
-                        >
-                          <div className="flex items-center justify-between gap-1 mb-1">
-                            <span className="text-xs font-bold text-text">{opt.label}</span>
-                            <span
-                              className={cn(
-                                "text-[10px] px-1.5 py-0.5 rounded font-medium",
-                                selected
-                                  ? "bg-purple-500 text-white"
-                                  : "bg-surface text-text-muted border border-border"
-                              )}
-                            >
-                              {opt.badge}
-                            </span>
-                          </div>
-                          <p className="text-[11px] text-text-muted leading-tight">{opt.desc}</p>
-                        </button>
-                      );
-                    })}
+                {newProfileContext.trim() && (
+                  <div>
+                    <label className="text-[11px] font-semibold text-text-muted block mb-1.5">
+                      Strategic Enhancement Level
+                    </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {ENHANCEMENT_OPTIONS.map((opt) => {
+                        const selected = newProfileEnhancement === opt.level;
+                        return (
+                          <button
+                            key={opt.level}
+                            type="button"
+                            onClick={() => setNewProfileEnhancement(opt.level)}
+                            disabled={creatingProfile}
+                            className={cn(
+                              "text-left p-2.5 rounded-[var(--radius-md)] border transition-all cursor-pointer",
+                              selected
+                                ? "border-purple-500 bg-purple-500/10 shadow-xs"
+                                : "border-border bg-bg/50 hover:border-border-strong hover:bg-bg"
+                            )}
+                          >
+                            <div className="flex items-center justify-between gap-1 mb-1">
+                              <span className="text-xs font-bold text-text">{opt.label}</span>
+                              <span
+                                className={cn(
+                                  "text-[10px] px-1.5 py-0.5 rounded font-medium",
+                                  selected
+                                    ? "bg-purple-600 text-white"
+                                    : "bg-surface text-text-muted border border-border"
+                                )}
+                              >
+                                {opt.badge}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-text-muted leading-tight">{opt.desc}</p>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-
-                <div>
-                  <label className="text-[11px] font-semibold text-text-muted block mb-1">
-                    Custom Prompt / Focus Instructions (optional)
-                  </label>
-                  <Textarea
-                    value={tailorPrompt}
-                    onChange={(e) => setTailorPrompt(e.target.value)}
-                    placeholder='e.g. "Highlight AWS serverless architecture and microservices leadership. Tone down legacy PHP experience."'
-                    rows={2}
-                    className="text-xs bg-bg"
-                    disabled={tailoring}
-                  />
-                </div>
+                )}
               </div>
 
               <div className="flex items-center justify-between gap-2 pt-3 border-t border-border">
-                <p className="text-[11px] text-text-faint">
-                  {tailorBluffLevel !== "none" ? "Extrapolated items will be marked with clear visual badges in review." : "Strictly verified facts only."}
-                </p>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setShowTailorModal(false)}
-                    disabled={tailoring}
-                    className="text-xs"
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    size="sm"
-                    onClick={handleTailorProfile}
-                    disabled={tailoring || !tailorTitle.trim() || !tailorJobDescription.trim()}
-                    className="text-xs font-semibold bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white shadow-xs"
-                  >
-                    {tailoring ? (
-                      <>
-                        <Sparkles className="h-3.5 w-3.5 mr-1.5 animate-spin" /> Tailoring with AI...
-                      </>
-                    ) : (
-                      <>
-                        <Wand2 className="h-3.5 w-3.5 mr-1.5" /> Generate Tailored Profile
-                      </>
-                    )}
-                  </Button>
-                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowAddProfileModal(false)}
+                  disabled={creatingProfile}
+                  className="text-xs"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={handleCreateProfile}
+                  disabled={creatingProfile || !newProfileTitle.trim()}
+                  className="text-xs font-semibold"
+                >
+                  {creatingProfile ? (
+                    <>
+                      <Sparkles className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                      Creating Profile...
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="h-3.5 w-3.5 mr-1" />
+                      {newProfileContext.trim() ? "Generate Enhanced Profile" : "Create Profile"}
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Rename Profile Modal */}
+        {showRenameModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fade-in">
+            <div className="w-full max-w-sm rounded-[var(--radius-lg)] border border-border bg-surface p-5 shadow-2xl space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-bold text-text">Rename Profile</h4>
+                <button
+                  onClick={() => setShowRenameModal(false)}
+                  className="p-1 rounded text-text-faint hover:text-text cursor-pointer"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <Input
+                value={renameDraft}
+                onChange={(e) => setRenameDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleSaveRename();
+                  if (e.key === "Escape") setShowRenameModal(false);
+                }}
+                placeholder="Profile title..."
+                autoFocus
+                className="text-xs h-9 bg-bg"
+              />
+              <div className="flex justify-end gap-2 pt-1 border-t border-border">
+                <Button variant="ghost" size="sm" onClick={() => setShowRenameModal(false)} className="text-xs">
+                  Cancel
+                </Button>
+                <Button size="sm" onClick={handleSaveRename} className="text-xs font-semibold">
+                  Save Title
+                </Button>
               </div>
             </div>
           </div>

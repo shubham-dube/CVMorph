@@ -110,7 +110,7 @@ export function ReviewableBullet({
       className={cn(
         "group relative rounded-[var(--radius-sm)] border pl-3 pr-2 py-2 -mx-3 transition-colors",
         isBluff
-          ? "border-l-[3px] border-l-amber-500 border-y-transparent border-r-transparent bg-amber-500/5 hover:bg-amber-500/10"
+          ? "border-l-[3px] border-l-purple-500 border-y-transparent border-r-transparent bg-purple-500/5 hover:bg-purple-500/10"
           : isTailored
           ? "border-l-[3px] border-l-indigo-500/80 border-y-transparent border-r-transparent bg-indigo-500/5 hover:bg-indigo-500/10"
           : flagged
@@ -125,7 +125,7 @@ export function ReviewableBullet({
           className={cn(
             "mt-[7px] shrink-0 rounded-full",
             isBluff
-              ? "h-1.5 w-1.5 bg-amber-500 ring-2 ring-amber-500/20"
+              ? "h-1.5 w-1.5 bg-purple-500 ring-2 ring-purple-500/20"
               : isTailored
               ? "h-1.5 w-1.5 bg-indigo-500"
               : "h-1 w-1 bg-text-faint"

@@ -270,24 +270,36 @@ export const candidatesApi = {
       method: "POST",
       body: JSON.stringify(body),
     }),
-  approveProfile: (id: string) =>
+  approveProfile: (id: string, profileId?: string) =>
     request<{ status: string; profile_id: string; approved_at: string; message: string }>(
-      `/candidates/${id}/profile/approve`,
+      profileId
+        ? `/candidates/${id}/profiles/${profileId}/approve`
+        : `/candidates/${id}/profile/approve`,
       { method: "POST" }
     ),
+  setMasterProfile: (id: string, profileId: string) =>
+    request<CandidateProfileSummary>(`/candidates/${id}/profiles/${profileId}/set-master`, {
+      method: "PATCH",
+    }),
   reviewEvents: (id: string) => request<ReviewEventResponse[]>(`/candidates/${id}/profile/review-events`),
 };
 
 // ── Generations ──────────────────────────────────────────────────────────────
 
 export const generationsApi = {
-  create: (candidateId: string, templateId: string, formattingInstructions?: string) =>
+  create: (
+    candidateId: string,
+    templateId: string,
+    formattingInstructions?: string,
+    profileId?: string
+  ) =>
     request<GenerationResponse>("/generations", {
       method: "POST",
       body: JSON.stringify({
         candidate_id: candidateId,
         template_id: templateId,
         formatting_instructions: formattingInstructions ?? null,
+        profile_id: profileId ?? null,
       }),
     }),
   get: (id: string) => request<GenerationResponse>(`/generations/${id}`),

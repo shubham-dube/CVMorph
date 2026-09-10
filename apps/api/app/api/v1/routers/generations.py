@@ -34,6 +34,7 @@ router = APIRouter(prefix="/generations")
 class CreateGenerationRequest(BaseModel):
     candidate_id: str
     template_id: str
+    profile_id: str | None = None
     formatting_instructions: str | None = None
 
 
@@ -94,29 +95,67 @@ async def create_generation(
             Candidate.org_id == user.org_id,
         )
     )
-    if not candidate_result.scalar_one_or_none():
+    candidate = candidate_result.scalar_one_or_none()
+    if not candidate:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Candidate not found")
 
     # 2. Validate profile is approved
-    profile_result = await db.execute(
-        select(CandidateProfileModel)
-        .where(
-            CandidateProfileModel.candidate_id == body.candidate_id,
-            CandidateProfileModel.org_id == user.org_id,
-            CandidateProfileModel.extraction_status == "approved",
+    if body.profile_id:
+        profile_result = await db.execute(
+            select(CandidateProfileModel).where(
+                CandidateProfileModel.id == body.profile_id,
+                CandidateProfileModel.candidate_id == body.candidate_id,
+                CandidateProfileModel.org_id == user.org_id,
+            )
         )
-        .order_by(CandidateProfileModel.approved_at.desc())
-        .limit(1)
-    )
-    profile = profile_result.scalar_one_or_none()
-    if not profile:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=(
-                "This candidate does not have an approved profile. "
-                "Review and approve the extracted profile before generating a CV."
-            ),
-        )
+        profile = profile_result.scalar_one_or_none()
+        if not profile:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Profile {body.profile_id} not found for this candidate",
+            )
+        if profile.extraction_status != "approved":
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=(
+                    f"Profile '{getattr(profile, 'title', 'Selected profile')}' is not approved. "
+                    "Review and approve this profile before generating a CV."
+                ),
+            )
+    else:
+        profile = None
+        if candidate.master_profile_id:
+            profile_result = await db.execute(
+                select(CandidateProfileModel).where(
+                    CandidateProfileModel.id == candidate.master_profile_id,
+                    CandidateProfileModel.candidate_id == body.candidate_id,
+                    CandidateProfileModel.org_id == user.org_id,
+                    CandidateProfileModel.extraction_status == "approved",
+                )
+            )
+            profile = profile_result.scalar_one_or_none()
+
+        if not profile:
+            profile_result = await db.execute(
+                select(CandidateProfileModel)
+                .where(
+                    CandidateProfileModel.candidate_id == body.candidate_id,
+                    CandidateProfileModel.org_id == user.org_id,
+                    CandidateProfileModel.extraction_status == "approved",
+                )
+                .order_by(CandidateProfileModel.approved_at.desc())
+                .limit(1)
+            )
+            profile = profile_result.scalar_one_or_none()
+
+        if not profile:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=(
+                    "This candidate does not have an approved profile. "
+                    "Review and approve the extracted profile before generating a CV."
+                ),
+            )
 
     # 3. Validate template (org template or system template)
     from sqlalchemy import or_

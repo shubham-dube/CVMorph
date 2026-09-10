@@ -25,10 +25,18 @@ import type { TemplateResponse, GenerationResponse } from "@/lib/types";
 interface PreviewPanelProps {
   candidateId: string;
   candidateName: string;
+  profileId?: string;
+  profileTitle?: string;
   onClose?: () => void;
 }
 
-export function PreviewPanel({ candidateId, candidateName, onClose }: PreviewPanelProps) {
+export function PreviewPanel({
+  candidateId,
+  candidateName,
+  profileId,
+  profileTitle,
+  onClose,
+}: PreviewPanelProps) {
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
   const [rendering, setRendering] = useState(false);
   const [renderStep, setRenderStep] = useState<string>("");
@@ -64,42 +72,47 @@ export function PreviewPanel({ candidateId, candidateName, onClose }: PreviewPan
 
   // Fetch most recent generation for this candidate if one exists
   const { data: recentGens } = useQuery({
-    queryKey: ["generations", candidateId],
-    queryFn: () => generationsApi.list({ candidateId, pageSize: 1 }),
+    queryKey: ["generations", candidateId, profileId],
+    queryFn: () => generationsApi.list({ candidateId, pageSize: 5 }),
     enabled: !!candidateId,
   });
 
   useEffect(() => {
-    if (recentGens?.items && recentGens.items.length > 0 && !generation) {
-      const latest = recentGens.items[0];
-      if (latest.status === "complete") {
-        setGeneration(latest);
+    if (recentGens?.items && recentGens.items.length > 0) {
+      // Find generation for this specific profile if profileId provided, or latest complete
+      const matchingGen = profileId
+        ? recentGens.items.find((g) => g.profile_id === profileId && g.status === "complete")
+        : recentGens.items.find((g) => g.status === "complete");
+      if (matchingGen) {
+        setGeneration(matchingGen);
+      } else if (!profileId && recentGens.items[0].status === "complete") {
+        setGeneration(recentGens.items[0]);
       }
     }
-  }, [recentGens, generation]);
+  }, [recentGens, profileId]);
 
   async function handleRenderPreview() {
     if (!selectedTemplateId) {
-      toast.error("Please select a template to preview.");
+      toast.error("Please select a template to generate.");
       return;
     }
 
     setRendering(true);
-    setRenderStep("Submitting render task...");
+    setRenderStep("Preparing profile data...");
     try {
-      const initial = await generationsApi.create(candidateId, selectedTemplateId);
-      setRenderStep("Formatting with template engine...");
+      const initial = await generationsApi.create(candidateId, selectedTemplateId, undefined, profileId);
+      setRenderStep("Applying template typography & layout...");
 
       const completed = await pollGeneration(initial.id, (status) => {
         if (status === "rendering") {
-          setRenderStep("Compiling PDF with LibreOffice...");
+          setRenderStep("Formatting executive PDF...");
         }
       });
 
       setGeneration(completed);
-      toast.success("CV preview compiled successfully!");
+      toast.success("Branded resume generated successfully!");
     } catch (err) {
-      const msg = err instanceof ApiError ? err.message : "Preview rendering failed.";
+      const msg = err instanceof ApiError ? err.message : "Document generation failed.";
       toast.error(msg);
     } finally {
       setRendering(false);
@@ -144,7 +157,9 @@ export function PreviewPanel({ candidateId, candidateName, onClose }: PreviewPan
             <Layers className="h-4 w-4" />
           </div>
           <div className="min-w-0">
-            <h4 className="text-xs font-semibold text-text truncate">Live CV Studio Preview</h4>
+            <h4 className="text-xs font-semibold text-text truncate">
+              {profileTitle ? `${profileTitle} • Live Preview` : "Live Resume Preview"}
+            </h4>
             <p className="text-[10px] text-text-faint truncate">
               {selectedTemplate ? `${selectedTemplate.name} (${selectedTemplate.template_type.toUpperCase()})` : "Select template"}
             </p>
@@ -175,12 +190,17 @@ export function PreviewPanel({ candidateId, candidateName, onClose }: PreviewPan
             {rendering ? (
               <>
                 <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
-                Rendering...
+                Generating...
+              </>
+            ) : generation ? (
+              <>
+                <Sparkles className="h-3.5 w-3.5 mr-1" />
+                Update Document
               </>
             ) : (
               <>
                 <Sparkles className="h-3.5 w-3.5 mr-1" />
-                Render Preview
+                Generate Resume
               </>
             )}
           </Button>
@@ -323,8 +343,8 @@ export function PreviewPanel({ candidateId, candidateName, onClose }: PreviewPan
               <Loader2 className="h-6 w-6 animate-spin" />
             </div>
             <div>
-              <p className="text-sm font-semibold text-text">Compiling Document Preview</p>
-              <p className="text-xs text-text-muted mt-1 font-mono">{renderStep || "Processing candidate profile..."}</p>
+              <p className="text-sm font-semibold text-text">Generating Branded Resume</p>
+              <p className="text-xs text-text-muted mt-1 font-mono">{renderStep || "Formatting candidate document..."}</p>
             </div>
           </div>
         ) : generation && generation.output_pdf_url ? (
@@ -358,14 +378,14 @@ export function PreviewPanel({ candidateId, candidateName, onClose }: PreviewPan
               <FileText className="h-6 w-6" />
             </div>
             <div>
-              <h5 className="text-sm font-semibold text-text">No Preview Rendered Yet</h5>
+              <h5 className="text-sm font-semibold text-text">Resume Not Yet Generated</h5>
               <p className="text-xs text-text-muted mt-1 leading-relaxed">
-                Click <strong>Render Preview</strong> to test this profile against the selected template and view the final PDF live.
+                Click <strong>Generate Resume</strong> to format this candidate profile with the selected corporate template and view the live PDF.
               </p>
             </div>
             <Button size="sm" onClick={handleRenderPreview} disabled={!selectedTemplateId}>
               <Sparkles className="h-3.5 w-3.5 mr-1" />
-              Render Now
+              Generate Resume
             </Button>
           </div>
         )}
