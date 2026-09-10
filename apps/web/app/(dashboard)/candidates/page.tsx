@@ -13,6 +13,7 @@ import {
   CheckCircle2,
   Clock,
   ArrowRight,
+  Layers,
 } from "lucide-react";
 import { Topbar } from "@/components/layout/Topbar";
 import { Input } from "@/components/ui/Input";
@@ -131,6 +132,15 @@ export default function CandidatesPage() {
                         ) : (
                           <span className="inline-flex items-center gap-1 rounded-full bg-confidence-medium-soft px-2 py-0.5 text-[10px] font-medium text-confidence-medium border border-confidence-medium/30">
                             <Clock className="h-3 w-3" /> Ready for Review
+                          </span>
+                        )}
+                        {(c.profiles_count ?? 1) > 1 ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-purple-500/10 px-2 py-0.5 text-[10px] font-medium text-purple-400 border border-purple-500/20">
+                            <Layers className="h-3 w-3" /> {c.profiles_count} Profiles
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-surface-hover px-2 py-0.5 text-[10px] font-medium text-text-faint border border-border">
+                            1 Profile
                           </span>
                         )}
                       </div>

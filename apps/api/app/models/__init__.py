@@ -212,8 +212,16 @@ class CandidateProfile(Base):
     candidate_id: Mapped[str] = mapped_column(
         UUID(as_uuid=False), ForeignKey("candidates.id", ondelete="CASCADE"), nullable=False
     )
-    source_document_id: Mapped[str] = mapped_column(
-        UUID(as_uuid=False), ForeignKey("documents.id", ondelete="RESTRICT"), nullable=False
+    source_document_id: Mapped[str | None] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("documents.id", ondelete="SET NULL"), nullable=True
+    )
+    title: Mapped[str] = mapped_column(String(255), nullable=False, default="Primary Profile")
+    target_role: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    job_description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    custom_prompt: Mapped[str | None] = mapped_column(Text, nullable=True)
+    bluff_level: Mapped[str | None] = mapped_column(String(50), nullable=True, default="none")
+    parent_profile_id: Mapped[str | None] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("candidate_profiles.id", ondelete="SET NULL"), nullable=True
     )
     profile_json: Mapped[dict] = mapped_column(JSON, nullable=False)
     extraction_status: Mapped[str] = mapped_column(
