@@ -30,30 +30,30 @@ const STAGES: Stage[] = [
   { key: "ready", label: "Ready for review" },
 ];
 
-const BLUFF_OPTIONS: { level: BluffLevel; label: string; badge: string; desc: string }[] = [
+const ALIGNMENT_OPTIONS: { level: BluffLevel; label: string; badge: string; desc: string }[] = [
   {
     level: "none",
-    label: "Strict Fact Match",
-    badge: "0% Bluff",
-    desc: "Preserves real facts; only keywords & phrasing are aligned to the JD.",
+    label: "Strict Facts",
+    badge: "100% Verified",
+    desc: "Strictly preserves source candidate facts without adding new details. Only standardizes formatting.",
   },
   {
     level: "low",
-    label: "Conservative",
-    badge: "Low Bluff",
-    desc: "Extrapolates related tools and standard engineering practices closely tied to source.",
+    label: "Role Focus",
+    badge: "Conservative",
+    desc: "Aligns existing experience and terminology to match target role requirements while staying strictly factual.",
   },
   {
     level: "medium",
-    label: "Balanced",
+    label: "Role Alignment",
     badge: "Recommended",
-    desc: "Re-frames experience to match JD requirements and bridges minor tech stack gaps.",
+    desc: "Bridges adjacent skills and contextualizes achievements directly to the target job description.",
   },
   {
     level: "high",
-    label: "Aggressive / Bold",
-    badge: "High Bluff",
-    desc: "Maximizes JD match by generating relevant achievements and deep tech stack alignment.",
+    label: "Scope Expansion",
+    badge: "Comprehensive",
+    desc: "Expands bullet points to highlight broader leadership, enterprise impact, and stretch competencies.",
   },
 ];
 
@@ -351,7 +351,7 @@ export default function UploadPage() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Sparkles className="h-4 w-4 text-purple-500" />
-                  <h3 className="text-sm font-bold text-text">Target Specific Job Description (Optional)</h3>
+                  <h3 className="text-sm font-bold text-text">Target Role Alignment & JD (Optional)</h3>
                 </div>
                 <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-text-muted hover:text-text">
                   <input
@@ -360,7 +360,7 @@ export default function UploadPage() {
                     onChange={(e) => setEnableTailoring(e.target.checked)}
                     className="rounded border-border accent-accent h-4 w-4"
                   />
-                  <span>Enable JD Tailoring & Bluff Controls</span>
+                  <span>Enable Role Alignment & Phrasing</span>
                 </label>
               </div>
 
@@ -368,7 +368,7 @@ export default function UploadPage() {
                 <div className="space-y-4 pt-2 border-t border-border animate-fade-in">
                   <div>
                     <label className="text-[11px] font-semibold text-text-muted block mb-1">
-                      Target Role Title
+                      Target Role Title (Optional)
                     </label>
                     <Input
                       value={targetRole}
@@ -380,23 +380,26 @@ export default function UploadPage() {
 
                   <div>
                     <label className="text-[11px] font-semibold text-text-muted block mb-1">
-                      Target Job Description (JD)
+                      Alignment Context & Guidelines (Optional)
                     </label>
                     <Textarea
                       value={jobDescription}
                       onChange={(e) => setJobDescription(e.target.value)}
-                      placeholder="Paste target job responsibilities and technical qualifications..."
+                      placeholder="Paste a target job description, key role requirements, or specific positioning guidelines (e.g. 'Highlight AWS and Kubernetes leadership')."
                       rows={4}
                       className="text-xs bg-bg"
                     />
+                    <p className="text-[11px] text-text-faint mt-1">
+                      If provided, AI will optimize phrasing and skill emphasis against this context.
+                    </p>
                   </div>
 
                   <div>
                     <label className="text-[11px] font-semibold text-text-muted block mb-1.5">
-                      Controlled Bluff / Creativity Level
+                      Tailoring & Role Alignment Level
                     </label>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {BLUFF_OPTIONS.map((opt) => {
+                      {ALIGNMENT_OPTIONS.map((opt) => {
                         const selected = bluffLevel === opt.level;
                         return (
                           <button
@@ -414,9 +417,9 @@ export default function UploadPage() {
                               <span className="text-xs font-bold text-text">{opt.label}</span>
                               <span
                                 className={cn(
-                                  "text-[10px] px-1.5 py-0.2 rounded font-medium",
+                                  "text-[10px] px-1.5 py-0.5 rounded font-medium",
                                   selected
-                                    ? "bg-purple-500 text-white"
+                                    ? "bg-purple-600 text-white"
                                     : "bg-surface text-text-muted border border-border"
                                 )}
                               >

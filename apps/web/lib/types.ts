@@ -317,6 +317,10 @@ export interface GenerationResponse {
   output_pdf_url: string | null;               // PDF view URL (inline)
   output_pdf_download_url?: string | null;     // PDF download URL (attachment)
   output_filename?: string | null;             // Formatted filename without extension
+  candidate_name?: string | null;
+  candidate_role?: string | null;
+  template_name?: string | null;
+  profile_title?: string | null;
   error_message: string | null;
   created_at: string;
   updated_at: string;

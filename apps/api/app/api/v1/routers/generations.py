@@ -15,7 +15,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, status
 from pydantic import BaseModel
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 
 from app.api.v1.deps import CurrentUser, ScopedDB
 from app.models import (
@@ -49,6 +49,10 @@ class GenerationResponse(BaseModel):
     output_pdf_url: str | None = None         # PDF view URL (inline)
     output_pdf_download_url: str | None = None # PDF download URL (attachment)
     output_filename: str | None = None       # Clean formatted title
+    candidate_name: str | None = None
+    candidate_role: str | None = None
+    template_name: str | None = None
+    profile_title: str | None = None
     error_message: str | None
     created_at: datetime
     updated_at: datetime
@@ -202,12 +206,38 @@ async def list_generations(
     user: CurrentUser,
     db: ScopedDB,
     candidate_id: str | None = Query(None),
+    status: str | None = Query(None),
+    search: str | None = Query(None),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
 ) -> GenerationListResponse:
-    query = select(Generation).where(Generation.org_id == user.org_id)
+    query = (
+        select(
+            Generation,
+            Candidate.name.label("candidate_name"),
+            CandidateProfileModel.title.label("profile_title"),
+            CandidateProfileModel.target_role.label("candidate_role"),
+            Template.name.label("template_name"),
+        )
+        .outerjoin(Candidate, Candidate.id == Generation.candidate_id)
+        .outerjoin(CandidateProfileModel, CandidateProfileModel.id == Generation.profile_id)
+        .outerjoin(Template, Template.id == Generation.template_id)
+        .where(Generation.org_id == user.org_id)
+    )
+
     if candidate_id:
         query = query.where(Generation.candidate_id == candidate_id)
+    if status and status != "all":
+        query = query.where(Generation.status == status)
+    if search and search.strip():
+        term = f"%{search.strip()}%"
+        query = query.where(
+            or_(
+                Candidate.name.ilike(term),
+                CandidateProfileModel.title.ilike(term),
+                Template.name.ilike(term),
+            )
+        )
 
     count_result = await db.execute(select(func.count()).select_from(query.subquery()))
     total = count_result.scalar_one()
@@ -217,8 +247,35 @@ async def list_generations(
         .offset((page - 1) * page_size)
         .limit(page_size)
     )
+    rows = result.all()
+
+    from app.services.storage.object_store import get_object_store
+    store = get_object_store()
+
+    items: list[GenerationResponse] = []
+    for g, cand_name, prof_title, cand_role, tpl_name in rows:
+        resp = _to_response(
+            g,
+            candidate_name=cand_name,
+            candidate_role=cand_role,
+            template_name=tpl_name,
+            profile_title=prof_title,
+        )
+        if g.status == "complete" and g.output_pdf_url:
+            resp.output_pdf_url = await store.signed_url(
+                g.output_pdf_url,
+                expires_in=3600,
+                disposition="inline",
+            )
+            resp.output_pdf_download_url = await store.signed_url(
+                g.output_pdf_url,
+                expires_in=3600,
+                disposition="attachment",
+            )
+        items.append(resp)
+
     return GenerationListResponse(
-        items=[_to_response(g) for g in result.scalars().all()],
+        items=items,
         total=total,
         page=page,
         page_size=page_size,
@@ -250,7 +307,30 @@ async def get_generation(
     if not generation:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Generation not found")
 
-    response = _to_response(generation)
+    cand_name = None
+    cand_role = None
+    tpl_name = None
+    prof_title = None
+
+    c_res = await db.execute(select(Candidate.name).where(Candidate.id == generation.candidate_id))
+    cand_name = c_res.scalar_one_or_none()
+    t_res = await db.execute(select(Template.name).where(Template.id == generation.template_id))
+    tpl_name = t_res.scalar_one_or_none()
+    p_res = await db.execute(
+        select(CandidateProfileModel.title, CandidateProfileModel.target_role)
+        .where(CandidateProfileModel.id == generation.profile_id)
+    )
+    p_row = p_res.first()
+    if p_row:
+        prof_title, cand_role = p_row
+
+    response = _to_response(
+        generation,
+        candidate_name=cand_name,
+        candidate_role=cand_role,
+        template_name=tpl_name,
+        profile_title=prof_title,
+    )
 
     # Build signed URLs when complete
     if generation.status == "complete":
@@ -307,7 +387,13 @@ async def get_generation(
 # ── Helper ────────────────────────────────────────────────────────────────────
 
 
-def _to_response(g: Generation) -> GenerationResponse:
+def _to_response(
+    g: Generation,
+    candidate_name: str | None = None,
+    candidate_role: str | None = None,
+    template_name: str | None = None,
+    profile_title: str | None = None,
+) -> GenerationResponse:
     return GenerationResponse(
         id=g.id,
         candidate_id=g.candidate_id,
@@ -315,6 +401,10 @@ def _to_response(g: Generation) -> GenerationResponse:
         profile_id=g.profile_id,
         status=g.status,
         formatting_instructions=g.formatting_instructions,
+        candidate_name=candidate_name,
+        candidate_role=candidate_role,
+        template_name=template_name,
+        profile_title=profile_title,
         error_message=getattr(g, "error_message", None),
         created_at=g.created_at,
         updated_at=g.updated_at,

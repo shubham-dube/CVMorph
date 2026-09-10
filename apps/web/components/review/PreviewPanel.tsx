@@ -28,6 +28,7 @@ interface PreviewPanelProps {
   profileId?: string;
   profileTitle?: string;
   onClose?: () => void;
+  onGenerationChange?: (hasGeneration: boolean) => void;
 }
 
 export function PreviewPanel({
@@ -36,6 +37,7 @@ export function PreviewPanel({
   profileId,
   profileTitle,
   onClose,
+  onGenerationChange,
 }: PreviewPanelProps) {
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
   const [rendering, setRendering] = useState(false);
@@ -70,26 +72,25 @@ export function PreviewPanel({
     }
   }, [templates, selectedTemplateId]);
 
-  // Fetch most recent generation for this candidate if one exists
+  // Fetch recent generations for this candidate
   const { data: recentGens } = useQuery({
     queryKey: ["generations", candidateId, profileId],
-    queryFn: () => generationsApi.list({ candidateId, pageSize: 5 }),
+    queryFn: () => generationsApi.list({ candidateId, pageSize: 50 }),
     enabled: !!candidateId,
   });
 
   useEffect(() => {
     if (recentGens?.items && recentGens.items.length > 0) {
-      // Find generation for this specific profile if profileId provided, or latest complete
       const matchingGen = profileId
         ? recentGens.items.find((g) => g.profile_id === profileId && g.status === "complete")
         : recentGens.items.find((g) => g.status === "complete");
-      if (matchingGen) {
-        setGeneration(matchingGen);
-      } else if (!profileId && recentGens.items[0].status === "complete") {
-        setGeneration(recentGens.items[0]);
-      }
+      setGeneration(matchingGen || null);
+      onGenerationChange?.(!!matchingGen);
+    } else {
+      setGeneration(null);
+      onGenerationChange?.(false);
     }
-  }, [recentGens, profileId]);
+  }, [recentGens, profileId, onGenerationChange]);
 
   async function handleRenderPreview() {
     if (!selectedTemplateId) {
@@ -110,7 +111,8 @@ export function PreviewPanel({
       });
 
       setGeneration(completed);
-      toast.success("Branded resume generated successfully!");
+      onGenerationChange?.(true);
+      toast.success(generation ? "Resume updated successfully!" : "Resume generated successfully!");
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : "Document generation failed.";
       toast.error(msg);
@@ -195,7 +197,7 @@ export function PreviewPanel({
             ) : generation ? (
               <>
                 <Sparkles className="h-3.5 w-3.5 mr-1" />
-                Update Document
+                Update Resume
               </>
             ) : (
               <>
@@ -343,7 +345,7 @@ export function PreviewPanel({
               <Loader2 className="h-6 w-6 animate-spin" />
             </div>
             <div>
-              <p className="text-sm font-semibold text-text">Generating Branded Resume</p>
+              <p className="text-sm font-semibold text-text">Generating Resume</p>
               <p className="text-xs text-text-muted mt-1 font-mono">{renderStep || "Formatting candidate document..."}</p>
             </div>
           </div>

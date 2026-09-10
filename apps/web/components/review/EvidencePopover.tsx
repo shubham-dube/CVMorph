@@ -4,10 +4,10 @@ import type { SourceType } from "@/lib/types";
 
 const SOURCE_TYPE_LABEL: Record<SourceType, string> = {
   source: "Copied directly from the original CV",
-  verified_transformation: "Reworded by AI, verified factually against source background",
-  ai_generated: "Synthesized by AI — structured from candidate career context",
-  tailored_enhancement: "AI Enhanced — targeted role positioning aligned with candidate capabilities",
-  extrapolated_bluff: "Strategic Addition — extrapolated competency added to bridge target scope",
+  verified_transformation: "Reworded by AI, verified against candidate background",
+  ai_generated: "Synthesized by AI from career context",
+  tailored_enhancement: "AI Enhanced — phrasing tailored for the target role",
+  extrapolated_bluff: "AI Aligned — competency added to match target role requirements",
 };
 
 export function EvidencePopover({
@@ -24,12 +24,12 @@ export function EvidencePopover({
         trigger={
           <button className="inline-flex items-center gap-1 text-[11px] font-semibold text-purple-600 dark:text-purple-400 bg-purple-500/10 border border-purple-500/30 px-1.5 py-0.5 rounded hover:bg-purple-500/20 transition-colors">
             <Sparkles className="h-3 w-3 text-purple-500" />
-            Strategic Addition
+            AI Aligned
           </button>
         }
       >
         <p className="text-[10px] font-bold uppercase tracking-wider text-purple-500 mb-1">
-          Strategic Competency Addition
+          AI Role Alignment
         </p>
         <p className="text-xs text-text-muted leading-relaxed">
           {SOURCE_TYPE_LABEL.extrapolated_bluff}
@@ -55,7 +55,7 @@ export function EvidencePopover({
         }
       >
         <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-500 mb-1">
-          Targeted Role Enhancement
+          Targeted Phrasing
         </p>
         <p className="text-xs text-text-muted leading-relaxed">
           {SOURCE_TYPE_LABEL.tailored_enhancement}

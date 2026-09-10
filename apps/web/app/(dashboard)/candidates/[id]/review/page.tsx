@@ -25,6 +25,7 @@ import {
   MoreVertical,
   FileText,
   Download,
+  ChevronDown,
 } from "lucide-react";
 import { Topbar } from "@/components/layout/Topbar";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -47,27 +48,27 @@ import { cn } from "@/lib/utils";
 const ENHANCEMENT_OPTIONS: { level: BluffLevel; label: string; badge: string; desc: string }[] = [
   {
     level: "none",
-    label: "Strict Factual",
+    label: "Strict Facts",
     badge: "100% Verified",
-    desc: "Strictly preserves source candidate facts. Aligns terminology and keywords without adding new details.",
+    desc: "Strictly preserves source candidate facts without adding new details. Only standardizes formatting.",
   },
   {
     level: "low",
-    label: "Targeted Alignment",
+    label: "Role Focus",
     badge: "Conservative",
-    desc: "Bridges terminology to match role requirements while closely adhering to verified experience.",
+    desc: "Aligns existing experience and terminology to match target role requirements while staying strictly factual.",
   },
   {
     level: "medium",
-    label: "Strategic Enhancement",
+    label: "Role Alignment",
     badge: "Recommended",
-    desc: "Industry standard alignment. Contextualizes accomplishments and bridges adjacent skill gaps for target role.",
+    desc: "Bridges adjacent skills and contextualizes achievements directly to the target job description.",
   },
   {
     level: "high",
-    label: "Broad Positioning",
+    label: "Scope Expansion",
     badge: "Comprehensive",
-    desc: "Maximizes scope match by articulating broader leadership, advanced tech capabilities, and stretch competencies.",
+    desc: "Expands bullet points to highlight broader leadership, enterprise impact, and stretch competencies.",
   },
 ];
 
@@ -104,6 +105,7 @@ export default function ReviewPage({ params }: { params: Promise<{ id: string }>
   const [approving, setApproving] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
   const [showPreview, setShowPreview] = useState(true);
+  const [hasGeneratedDoc, setHasGeneratedDoc] = useState(false);
 
   // Candidate Header Edit state
   const [editingHeader, setEditingHeader] = useState(false);
@@ -512,22 +514,28 @@ export default function ReviewPage({ params }: { params: Promise<{ id: string }>
                   const isActive = p.id === (activeProfileId || data?.profile_id);
                   const isMenuOpen = openMenuProfileId === p.id;
                   return (
-                    <div key={p.id} className="relative inline-flex items-center">
+                    <div
+                      key={p.id}
+                      className={cn(
+                        "relative inline-flex items-stretch rounded-[var(--radius-sm)] border text-xs font-medium transition-all shadow-2xs",
+                        isActive
+                          ? "bg-accent border-accent text-white font-semibold shadow-xs"
+                          : "bg-bg-elevated border-border text-text-muted hover:text-text hover:bg-surface-hover"
+                      )}
+                    >
                       <button
+                        type="button"
                         onClick={() => handleSwitchProfile(p.id)}
-                        className={cn(
-                          "pl-3 pr-2 py-1 rounded-[var(--radius-sm)] text-xs font-medium transition-all flex items-center gap-1.5 cursor-pointer",
-                          isActive
-                            ? "bg-accent text-white shadow-xs font-semibold"
-                            : "bg-bg-elevated hover:bg-surface-hover text-text-muted hover:text-text border border-border"
-                        )}
+                        className="pl-2.5 pr-2 py-1 flex items-center gap-1.5 cursor-pointer rounded-l-[var(--radius-sm)] focus:outline-none"
                       >
-                        <span className="truncate max-w-[160px]">{p.title}</span>
+                        <span className="truncate max-w-[150px]">{p.title}</span>
                         {p.is_master && (
                           <span
                             className={cn(
-                              "text-[10px] px-1 py-0.2 rounded font-semibold",
-                              isActive ? "bg-white/20 text-white" : "bg-amber-500/10 text-amber-500 border border-amber-500/30"
+                              "text-[9px] px-1 py-0.2 rounded font-semibold uppercase tracking-wider",
+                              isActive
+                                ? "bg-white/20 text-white"
+                                : "bg-amber-500/10 text-amber-500 border border-amber-500/30"
                             )}
                             title="Default master profile for candidate"
                           >
@@ -547,21 +555,24 @@ export default function ReviewPage({ params }: { params: Promise<{ id: string }>
                         )}
                       </button>
 
-                      {/* Dropdown menu trigger for this profile */}
+                      {/* Dropdown menu trigger integrated directly into the pill */}
                       <button
+                        type="button"
                         onClick={(e) => {
                           e.stopPropagation();
                           setOpenMenuProfileId(isMenuOpen ? null : p.id);
                         }}
                         className={cn(
-                          "h-6 w-6 ml-0.5 rounded flex items-center justify-center transition-colors cursor-pointer",
+                          "px-1.5 flex items-center justify-center cursor-pointer border-l transition-colors rounded-r-[var(--radius-sm)] focus:outline-none",
                           isActive
-                            ? "text-white/80 hover:text-white hover:bg-white/20"
-                            : "text-text-faint hover:text-text hover:bg-surface-hover"
+                            ? "border-white/25 text-white/90 hover:bg-white/20 hover:text-white"
+                            : "border-border text-text-faint hover:text-text hover:bg-surface"
                         )}
                         title="Profile options (Rename, Set Default, Duplicate, Delete)"
+                        aria-label="Profile options"
+                        aria-expanded={isMenuOpen}
                       >
-                        <MoreVertical className="h-3.5 w-3.5" />
+                        <ChevronDown className={cn("h-3 w-3 transition-transform duration-150", isMenuOpen && "rotate-180")} />
                       </button>
 
                       {/* Dropdown Menu Popup */}
@@ -677,7 +688,7 @@ export default function ReviewPage({ params }: { params: Promise<{ id: string }>
             <span className="text-xs font-bold text-text">{data?.title || "Primary Profile"}</span>
             {data?.bluff_level && data.bluff_level !== "none" && (
               <span className="text-[10px] font-semibold text-purple-600 dark:text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded-full border border-purple-500/20">
-                {data.bluff_level === "low" ? "Targeted Alignment" : data.bluff_level === "medium" ? "Strategic Enhancement" : "Broad Positioning"}
+                {data.bluff_level === "low" ? "Role Focus" : data.bluff_level === "medium" ? "Role Alignment" : "Scope Expansion"}
               </span>
             )}
           </div>
@@ -721,8 +732,8 @@ export default function ReviewPage({ params }: { params: Promise<{ id: string }>
                 </>
               ) : (
                 <>
-                  <Sparkles className="h-3.5 w-3.5 mr-1.5 text-purple-200" />
-                  Generate Branded Resume
+                  <FileText className="h-3.5 w-3.5 mr-1.5" />
+                  {hasGeneratedDoc ? "Update Resume" : "Generate Resume"}
                 </>
               )}
             </Button>
@@ -949,6 +960,7 @@ export default function ReviewPage({ params }: { params: Promise<{ id: string }>
                 profileId={data?.profile_id || activeProfileId || undefined}
                 profileTitle={data?.title || "Primary Profile"}
                 onClose={() => setShowPreview(false)}
+                onGenerationChange={setHasGeneratedDoc}
               />
             </div>
           )}
@@ -1027,7 +1039,7 @@ export default function ReviewPage({ params }: { params: Promise<{ id: string }>
                 {newProfileContext.trim() && (
                   <div>
                     <label className="text-[11px] font-semibold text-text-muted block mb-1.5">
-                      Strategic Enhancement Level
+                      Tailoring & Role Alignment Level
                     </label>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       {ENHANCEMENT_OPTIONS.map((opt) => {
@@ -1091,7 +1103,7 @@ export default function ReviewPage({ params }: { params: Promise<{ id: string }>
                   ) : (
                     <>
                       <Plus className="h-3.5 w-3.5 mr-1" />
-                      {newProfileContext.trim() ? "Generate Enhanced Profile" : "Create Profile"}
+                      {newProfileContext.trim() ? "Generate Aligned Profile" : "Create Profile"}
                     </>
                   )}
                 </Button>

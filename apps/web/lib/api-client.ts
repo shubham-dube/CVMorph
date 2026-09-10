@@ -303,9 +303,17 @@ export const generationsApi = {
       }),
     }),
   get: (id: string) => request<GenerationResponse>(`/generations/${id}`),
-  list: (params?: { candidateId?: string; page?: number; pageSize?: number }) => {
+  list: (params?: {
+    candidateId?: string;
+    status?: string;
+    search?: string;
+    page?: number;
+    pageSize?: number;
+  }) => {
     const qs = new URLSearchParams();
     if (params?.candidateId) qs.set("candidate_id", params.candidateId);
+    if (params?.status && params.status !== "all") qs.set("status", params.status);
+    if (params?.search) qs.set("search", params.search);
     if (params?.page) qs.set("page", String(params.page));
     if (params?.pageSize) qs.set("page_size", String(params.pageSize));
     const s = qs.toString();

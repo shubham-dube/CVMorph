@@ -45,7 +45,7 @@ export function ApproveBar({
               <p className="text-xs font-semibold text-text">
                 {profileTitle ? `"${profileTitle}" Approved` : "Profile Approved & Verified"}
               </p>
-              <p className="text-[11px] text-text-muted">Ready for branded resume generation and PDF export.</p>
+              <p className="text-[11px] text-text-muted">Ready for resume generation and PDF export.</p>
             </div>
           </div>
           <div className="flex items-center gap-2">

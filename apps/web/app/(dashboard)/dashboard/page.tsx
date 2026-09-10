@@ -51,35 +51,7 @@ export default function DashboardPage() {
     day: "numeric",
   });
 
-  const getStatusBadge = (status: string | null) => {
-    switch (status) {
-      case "approved":
-        return (
-          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-semibold text-emerald-500 border border-emerald-500/20">
-            <CheckCircle2 className="h-3 w-3" /> Approved
-          </span>
-        );
-      case "ready_for_review":
-        return (
-          <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-[11px] font-semibold text-amber-500 border border-amber-500/20">
-            <Clock className="h-3 w-3" /> Ready for Review
-          </span>
-        );
-      case "extracting":
-      case "parsing":
-        return (
-          <span className="inline-flex items-center gap-1 rounded-full bg-accent/10 px-2 py-0.5 text-[11px] font-semibold text-accent border border-accent/20">
-            <RefreshCw className="h-3 w-3 animate-spin" /> Processing
-          </span>
-        );
-      default:
-        return (
-          <span className="inline-flex items-center gap-1 rounded-full bg-surface-hover px-2 py-0.5 text-[11px] font-medium text-text-muted border border-border">
-            Draft
-          </span>
-        );
-    }
-  };
+
 
   return (
     <>
@@ -266,11 +238,10 @@ export default function DashboardPage() {
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-3 shrink-0 ml-4">
-                          {getStatusBadge(c.extraction_status)}
+                        <div className="flex items-center gap-2 shrink-0 ml-4">
                           <Button
                             size="sm"
-                            variant="ghost"
+                            variant="outline"
                             onClick={() => router.push(`/candidates/${c.id}/review`)}
                             className="text-xs h-7 px-2.5"
                           >
