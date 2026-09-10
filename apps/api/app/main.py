@@ -26,6 +26,7 @@ from app.api.v1.routers import (
     orgs,
     jobs,
     extract,
+    dashboard,
 )
 
 
@@ -77,6 +78,7 @@ app.add_middleware(
 API_PREFIX = "/v1"
 
 app.include_router(auth.router,        prefix=API_PREFIX)
+app.include_router(dashboard.router,   prefix=API_PREFIX, tags=["dashboard"])
 app.include_router(extract.router,     prefix=API_PREFIX, tags=["extract"])
 app.include_router(documents.router,   prefix=API_PREFIX, tags=["documents"])
 app.include_router(candidates.router,  prefix=API_PREFIX, tags=["candidates"])
