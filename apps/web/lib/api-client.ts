@@ -6,9 +6,16 @@
  * backend contract changes, this is the one file to update.
  */
 import type {
+  AgentEditRequest,
+  AgentEditResponse,
   CandidateListResponse,
   CandidateProfile,
+  CandidateProfileSummary,
+  CandidateProfilesListResponse,
   CandidateResponse,
+  CloneProfileRequest,
+  CreateCandidateFromTextRequest,
+  DashboardStatsResponse,
   DocumentListResponse,
   DocumentUploadResponse,
   GenerationListResponse,
@@ -18,6 +25,7 @@ import type {
   OrgResponse,
   ProfileResponse,
   ReviewEventResponse,
+  TailorProfileRequest,
   TemplateResponse,
   TokenResponse,
   UsageSummaryResponse,
@@ -77,7 +85,9 @@ export class ApiError extends Error {
     const message =
       typeof detail === "string"
         ? detail
-        : (detail as { message?: string })?.message ?? JSON.stringify(detail);
+        : (detail as { detail?: string; message?: string })?.detail ??
+          (detail as { detail?: string; message?: string })?.message ??
+          JSON.stringify(detail);
     super(message);
     this.status = status;
     this.detail = detail;
@@ -207,8 +217,22 @@ export const candidatesApi = {
   },
   create: (name: string) =>
     request<CandidateResponse>("/candidates", { method: "POST", body: JSON.stringify({ name }) }),
+  createFromText: (body: CreateCandidateFromTextRequest) =>
+    request<ProfileResponse>("/candidates/from-text", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
   get: (id: string) => request<CandidateResponse>(`/candidates/${id}`),
-  getProfile: (id: string) => request<ProfileResponse>(`/candidates/${id}/profile`),
+  getProfile: (id: string, profileId?: string) =>
+    request<ProfileResponse>(`/candidates/${id}/profile${profileId ? `?profile_id=${profileId}` : ""}`),
+  listProfiles: (id: string) => request<CandidateProfilesListResponse>(`/candidates/${id}/profiles`),
+  getProfileById: (id: string, profileId: string) =>
+    request<ProfileResponse>(`/candidates/${id}/profiles/${profileId}`),
+  tailorProfile: (id: string, body: TailorProfileRequest) =>
+    request<ProfileResponse>(`/candidates/${id}/profiles/tailor`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
   patchProfile: (
     id: string,
     body: {
@@ -217,10 +241,33 @@ export const candidatesApi = {
       old_value: unknown;
       new_value: unknown;
       profile: CandidateProfile;
-    }
+    },
+    profileId?: string
   ) =>
-    request<ProfileResponse>(`/candidates/${id}/profile`, {
+    request<ProfileResponse>(
+      profileId ? `/candidates/${id}/profiles/${profileId}` : `/candidates/${id}/profile`,
+      {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      }
+    ),
+  updateProfileTitle: (id: string, profileId: string, title: string) =>
+    request<CandidateProfileSummary>(`/candidates/${id}/profiles/${profileId}/title`, {
       method: "PATCH",
+      body: JSON.stringify({ title }),
+    }),
+  cloneProfile: (id: string, body: CloneProfileRequest) =>
+    request<ProfileResponse>(`/candidates/${id}/profiles/clone`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  deleteProfile: (id: string, profileId: string) =>
+    request<{ status: string; message: string }>(`/candidates/${id}/profiles/${profileId}`, {
+      method: "DELETE",
+    }),
+  agentEditProfile: (candidateId: string, profileId: string, body: AgentEditRequest) =>
+    request<AgentEditResponse>(`/candidates/${candidateId}/profiles/${profileId}/agent-edit`, {
+      method: "POST",
       body: JSON.stringify(body),
     }),
   approveProfile: (id: string) =>
@@ -298,4 +345,10 @@ export const extractApi = {
       body: form,
     });
   },
+};
+
+// ── Dashboard ────────────────────────────────────────────────────────────────
+
+export const dashboardApi = {
+  getStats: () => request<DashboardStatsResponse>("/dashboard/stats"),
 };

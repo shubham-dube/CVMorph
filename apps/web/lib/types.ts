@@ -11,7 +11,12 @@
 
 // ── Provenance / trust primitives ───────────────────────────────────────────
 
-export type SourceType = "source" | "verified_transformation" | "ai_generated";
+export type SourceType =
+  | "source"
+  | "verified_transformation"
+  | "ai_generated"
+  | "tailored_enhancement"
+  | "extrapolated_bluff";
 
 export interface Provenance {
   confidence: number; // [0, 1]
@@ -150,6 +155,7 @@ export interface CandidateResponse {
   name: string;
   role_title?: string | null;
   extraction_status?: string | null;
+  profiles_count?: number;
   master_profile_id: string | null;
   created_at: string;
   updated_at: string;
@@ -162,13 +168,94 @@ export interface CandidateListResponse {
   page_size: number;
 }
 
+export interface CandidateProfileSummary {
+  id: string;
+  candidate_id: string;
+  title: string;
+  target_role: string | null;
+  bluff_level: string | null;
+  extraction_status: ExtractionStatus;
+  overall_confidence: number | null;
+  parent_profile_id: string | null;
+  is_master: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CandidateProfilesListResponse {
+  items: CandidateProfileSummary[];
+  total: number;
+}
+
+export interface UpdateProfileTitleRequest {
+  title: string;
+}
+
+export type BluffLevel = "none" | "low" | "medium" | "high";
+
+export interface CloneProfileRequest {
+  title: string;
+  base_profile_id?: string;
+  target_role?: string;
+  job_description?: string;
+  custom_prompt?: string;
+  bluff_level?: string;
+}
+
+export interface TailorProfileRequest {
+  title: string;
+  target_role?: string;
+  job_description: string;
+  custom_prompt?: string;
+  bluff_level?: BluffLevel;
+  base_profile_id?: string;
+}
+
+export interface CreateCandidateFromTextRequest {
+  full_name: string;
+  raw_text?: string;
+  role_title?: string;
+  email?: string;
+  phone?: string;
+  location?: string;
+  target_role?: string;
+  job_description?: string;
+  custom_prompt?: string;
+  bluff_level?: BluffLevel;
+}
+
+export interface AgentChatMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  timestamp: string;
+  changes_summary?: string[];
+}
+
+export interface AgentEditRequest {
+  prompt: string;
+  conversation_history?: Array<{ role: string; content: string }>;
+}
+
+export interface AgentEditResponse {
+  reply: string;
+  changes_summary: string[];
+  profile_id: string;
+  candidate_id: string;
+  profile: CandidateProfile;
+}
+
 export interface ProfileResponse {
   profile_id: string;
   candidate_id: string;
+  title?: string;
+  target_role?: string | null;
+  bluff_level?: string | null;
   extraction_status: ExtractionStatus;
   overall_confidence: number | null;
   extraction_model: string;
   approved_at: string | null;
+  parent_profile_id?: string | null;
   profile: CandidateProfile;
 }
 
@@ -282,4 +369,36 @@ export interface ApiErrorDetail {
   message: string;
   unreviewed_paths?: string[];
   tip?: string;
+}
+
+// ── Dashboard Types ──────────────────────────────────────────────────────────
+
+export interface RecentCandidateItem {
+  id: string;
+  name: string;
+  role_title: string | null;
+  extraction_status: string | null;
+  created_at: string;
+}
+
+export interface RecentGenerationItem {
+  id: string;
+  candidate_id: string;
+  candidate_name: string;
+  template_name: string;
+  output_filename: string | null;
+  docx_url: string | null;
+  pdf_url: string | null;
+  created_at: string;
+}
+
+export interface DashboardStatsResponse {
+  total_candidates: number;
+  total_profiles: number;
+  approved_profiles: number;
+  total_generations: number;
+  avg_confidence: number | null;
+  approval_rate: number;
+  recent_candidates: RecentCandidateItem[];
+  recent_generations: RecentGenerationItem[];
 }
