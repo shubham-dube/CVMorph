@@ -3,15 +3,18 @@
 import { useState } from "react";
 import { Check, Pencil, Trash2, X, Plus } from "lucide-react";
 import { ConfidenceBadge } from "./ConfidenceBadge";
+import { EvidencePopover } from "./EvidencePopover";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { needsReview } from "@/lib/types";
+import { needsReview, type SourceType } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 interface SkillGroupCardProps {
   category: string;
   skills: string[];
   confidence: number;
+  sourceType?: SourceType;
+  evidence?: string | null;
   reviewed: boolean;
   onConfirm: () => void;
   onEdit: (category: string, skills: string[]) => void;
@@ -23,6 +26,8 @@ export function SkillGroupCard({
   category,
   skills,
   confidence,
+  sourceType = "source",
+  evidence = null,
   reviewed,
   onConfirm,
   onEdit,
@@ -103,17 +108,29 @@ export function SkillGroupCard({
     );
   }
 
+  const isBluff = sourceType === "extrapolated_bluff";
+  const isTailored = sourceType === "tailored_enhancement";
+
   return (
     <div
       id={fieldPath}
       className={cn(
         "group rounded-[var(--radius-md)] border p-3 transition-colors",
-        flagged ? "border-confidence-low/50 bg-confidence-low-soft/20" : "border-border hover:border-border-strong"
+        isBluff
+          ? "border-l-[3px] border-l-amber-500 bg-amber-500/5 hover:bg-amber-500/10"
+          : isTailored
+          ? "border-l-[3px] border-l-indigo-500/80 bg-indigo-500/5 hover:bg-indigo-500/10"
+          : flagged
+          ? "border-confidence-low/50 bg-confidence-low-soft/20"
+          : "border-border hover:border-border-strong"
       )}
     >
       <div className="flex items-center justify-between gap-2 mb-2">
         <h4 className="text-[13px] font-semibold text-text">{category}</h4>
-        <ConfidenceBadge confidence={confidence} showValue={false} onlyLow />
+        <div className="flex items-center gap-1.5">
+          <EvidencePopover evidence={evidence} sourceType={sourceType} />
+          <ConfidenceBadge confidence={confidence} showValue={false} onlyLow={!isBluff} />
+        </div>
       </div>
       <div className="flex flex-wrap gap-1.5">
         {skills.map((s, i) => (
@@ -125,7 +142,7 @@ export function SkillGroupCard({
       <div
         className={cn(
           "flex items-center gap-3 mt-2.5 pt-2.5 border-t border-border/60 text-xs transition-opacity",
-          needsReview(confidence) ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+          needsReview(confidence) || isBluff || isTailored ? "opacity-100" : "opacity-0 group-hover:opacity-100"
         )}
       >
         {reviewed && needsReview(confidence) && (

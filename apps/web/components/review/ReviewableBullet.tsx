@@ -39,8 +39,10 @@ export function ReviewableBullet({
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(text);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const flagged = needsReview(confidence) && !reviewed;
-  const showAffordances = forceExpanded || needsReview(confidence);
+  const isBluff = sourceType === "extrapolated_bluff";
+  const isTailored = sourceType === "tailored_enhancement";
+  const flagged = (needsReview(confidence) || isBluff) && !reviewed;
+  const showAffordances = forceExpanded || needsReview(confidence) || isBluff || isTailored;
 
   function applyBold() {
     const textarea = textareaRef.current;
@@ -107,7 +109,11 @@ export function ReviewableBullet({
       id={fieldPath}
       className={cn(
         "group relative rounded-[var(--radius-sm)] border pl-3 pr-2 py-2 -mx-3 transition-colors",
-        flagged
+        isBluff
+          ? "border-l-[3px] border-l-amber-500 border-y-transparent border-r-transparent bg-amber-500/5 hover:bg-amber-500/10"
+          : isTailored
+          ? "border-l-[3px] border-l-indigo-500/80 border-y-transparent border-r-transparent bg-indigo-500/5 hover:bg-indigo-500/10"
+          : flagged
           ? "border-l-[3px] border-l-confidence-low border-y-transparent border-r-transparent bg-confidence-low-soft/30"
           : reviewed && needsReview(confidence)
           ? "border-l-[3px] border-l-confidence-high border-y-transparent border-r-transparent"
@@ -115,7 +121,16 @@ export function ReviewableBullet({
       )}
     >
       <div className="flex items-start gap-2">
-        <span className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-text-faint" />
+        <span
+          className={cn(
+            "mt-[7px] shrink-0 rounded-full",
+            isBluff
+              ? "h-1.5 w-1.5 bg-amber-500 ring-2 ring-amber-500/20"
+              : isTailored
+              ? "h-1.5 w-1.5 bg-indigo-500"
+              : "h-1 w-1 bg-text-faint"
+          )}
+        />
         <p className="text-sm text-text leading-relaxed flex-1">
           <RichText text={text} />
         </p>
@@ -126,7 +141,7 @@ export function ReviewableBullet({
           showAffordances ? "opacity-100" : "opacity-0 group-hover:opacity-100"
         )}
       >
-        <ConfidenceBadge confidence={confidence} onlyLow />
+        <ConfidenceBadge confidence={confidence} onlyLow={!isBluff} />
         <EvidencePopover evidence={evidence} sourceType={sourceType} />
         <span className="flex-1" />
         {reviewed && needsReview(confidence) && (
