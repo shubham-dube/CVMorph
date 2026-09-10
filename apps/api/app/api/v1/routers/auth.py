@@ -25,6 +25,7 @@ from pydantic import BaseModel, EmailStr
 from sqlalchemy import select
 
 from app.api.v1.deps import CurrentUser, DBSession
+from app.core.config import settings
 from app.core.security import create_access_token, verify_password
 from app.models import User
 
@@ -88,6 +89,34 @@ async def get_me(user: CurrentUser, db: DBSession) -> UserResponse:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
     return UserResponse.model_validate(db_user)
+
+
+@router.post(
+    "/refresh",
+    response_model=TokenResponse,
+    summary="Refresh session token",
+    description="Refreshes and extends the current session token for an active authenticated user.",
+)
+async def refresh_session(user: CurrentUser, db: DBSession) -> TokenResponse:
+    result = await db.execute(select(User).where(User.id == user.user_id))
+    db_user: User | None = result.scalar_one_or_none()
+
+    if not db_user or not db_user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found or account deactivated",
+        )
+
+    new_token = create_access_token(
+        subject=db_user.id,
+        org_id=db_user.org_id,
+        role=db_user.role,
+    )
+
+    return TokenResponse(
+        access_token=new_token,
+        expires_in=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+    )
 
 
 class GoogleAuthRequest(BaseModel):

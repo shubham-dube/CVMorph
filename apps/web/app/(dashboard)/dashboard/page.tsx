@@ -50,8 +50,18 @@ export default function DashboardPage() {
     month: "long",
     day: "numeric",
   });
+  const greeting = (() => {
+    const hour = new Date().getHours();
+    if (hour < 12) return "Good morning";
+    if (hour < 18) return "Good afternoon";
+    return "Good evening";
+  })();
 
-
+  const firstName = user?.name
+    ? user.name.trim().split(/\s+/)[0]
+    : user?.email
+    ? user.email.split("@")[0]
+    : "";
 
   return (
     <>
@@ -61,7 +71,7 @@ export default function DashboardPage() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-1">
           <div>
             <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-text">
-              Welcome back{user?.name ? `, ${user.name}` : user?.email ? `, ${user.email.split("@")[0]}` : ""}
+              {firstName ? `${greeting}, ${firstName}` : greeting}
             </h2>
             <p className="mt-1 text-xs sm:text-sm text-text-muted font-medium">
               {todayFormatted}

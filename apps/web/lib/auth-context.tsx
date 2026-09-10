@@ -54,6 +54,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Industry-standard silent session renewal: refresh session token periodically while active
+  useEffect(() => {
+    if (!user) return;
+    const interval = setInterval(async () => {
+      try {
+        const res = await authApi.refreshToken();
+        if (res?.access_token) {
+          setToken(res.access_token);
+        }
+      } catch {
+        // fail silently; active token remains valid for 30 days
+      }
+    }, 1000 * 60 * 60 * 12); // every 12 hours
+
+    return () => clearInterval(interval);
+  }, [user]);
+
+  // Firebase auth state keepalive: silently sync refreshed Firebase token
+  useEffect(() => {
+    if (!isFirebaseConfigured() || !auth) return;
+    const unsubscribe = auth.onIdTokenChanged(async (firebaseUser) => {
+      if (firebaseUser) {
+        try {
+          const idToken = await firebaseUser.getIdToken();
+          const res = await authApi.googleLogin(
+            idToken,
+            firebaseUser.email || undefined,
+            firebaseUser.displayName || undefined,
+            firebaseUser.photoURL || undefined
+          );
+          if (res?.access_token) {
+            setToken(res.access_token);
+          }
+        } catch {
+          // ignore
+        }
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
   const loginWithGoogle = useCallback(async () => {
     if (!isFirebaseConfigured() || !auth || !googleProvider) {
       throw new Error("Firebase is not yet configured. Please provide Firebase credentials in apps/web/.env.");

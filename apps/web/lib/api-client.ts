@@ -69,9 +69,8 @@ export function setToken(token: string | null) {
   if (token) {
     localStorage.setItem(TOKEN_KEY, token);
     // Mirrored into a plain cookie so the Next.js middleware can gate
-    // dashboard routes server-side. See docs/FRONTEND_BACKEND_GAPS.md §1
-    // for why this isn't httpOnly and what should replace it.
-    document.cookie = `cvmorph_session=1; path=/; max-age=${60 * 60 * 24 * 7}; samesite=lax`;
+    // dashboard routes server-side. 30 days duration (industry standard).
+    document.cookie = `cvmorph_session=1; path=/; max-age=${60 * 60 * 24 * 30}; samesite=lax`;
   } else {
     localStorage.removeItem(TOKEN_KEY);
     document.cookie = "cvmorph_session=; path=/; max-age=0";
@@ -121,7 +120,7 @@ async function request<T>(
     throw new ApiError(res.status, body.detail ?? body);
   }
 
-  if (res.status === 204) return {} as T;
+  if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
 }
 
@@ -139,6 +138,7 @@ export const authApi = {
       body: JSON.stringify({ id_token: idToken, email, name, photo_url: photoUrl, picture_url: photoUrl }),
     }),
   me: () => request<UserResponse>("/auth/me"),
+  refreshToken: () => request<TokenResponse>("/auth/refresh", { method: "POST" }),
 };
 
 // ── Documents ────────────────────────────────────────────────────────────────

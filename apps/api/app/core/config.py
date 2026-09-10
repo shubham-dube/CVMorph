@@ -102,7 +102,7 @@ class Settings(BaseSettings):
 
     # ── Auth (JWT) ─────────────────────────────────────────────────────────
     JWT_ALGORITHM: str = "HS256"
-    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
+    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 30  # 30 days session expiry
 
     # ── Seed data ──────────────────────────────────────────────────────────
     SEED_ORG_NAME: str = "CVMorph"

@@ -4,7 +4,24 @@ import { useState, type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "sonner";
 import { AuthProvider } from "@/lib/auth-context";
-import { ThemeProvider } from "@/lib/theme-context";
+import { ThemeProvider, useTheme } from "@/lib/theme-context";
+
+function ThemedToaster() {
+  const { theme } = useTheme();
+  return (
+    <Toaster
+      position="top-right"
+      theme={theme}
+      toastOptions={{
+        style: {
+          background: "var(--surface-raised)",
+          color: "var(--text)",
+          border: "1px solid var(--border)",
+        },
+      }}
+    />
+  );
+}
 
 export function Providers({ children }: { children: ReactNode }) {
   const [client] = useState(
@@ -25,17 +42,7 @@ export function Providers({ children }: { children: ReactNode }) {
       <ThemeProvider>
         <AuthProvider>
           {children}
-          <Toaster
-            position="top-right"
-            theme="dark"
-            toastOptions={{
-              style: {
-                background: "var(--surface-raised)",
-                color: "var(--text)",
-                border: "1px solid var(--border)",
-              },
-            }}
-          />
+          <ThemedToaster />
         </AuthProvider>
       </ThemeProvider>
     </QueryClientProvider>
