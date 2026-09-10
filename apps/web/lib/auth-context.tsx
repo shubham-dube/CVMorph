@@ -69,7 +69,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setToken(res.access_token);
     const me = await authApi.me();
     setUser(me);
-    router.push("/candidates");
+    router.push("/dashboard");
   }, [router]);
 
   const login = useCallback(async (email: string, password: string) => {

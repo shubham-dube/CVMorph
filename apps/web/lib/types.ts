@@ -138,6 +138,8 @@ export interface UserResponse {
   id: string;
   org_id: string;
   email: string;
+  name?: string | null;
+  picture_url?: string | null;
   role: "admin" | "recruiter";
   is_active: boolean;
   created_at: string;

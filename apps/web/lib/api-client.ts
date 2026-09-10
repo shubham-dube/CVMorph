@@ -136,7 +136,7 @@ export const authApi = {
   googleLogin: (idToken: string, email?: string, name?: string, photoUrl?: string) =>
     request<TokenResponse>("/auth/google", {
       method: "POST",
-      body: JSON.stringify({ id_token: idToken, email, name, photo_url: photoUrl }),
+      body: JSON.stringify({ id_token: idToken, email, name, photo_url: photoUrl, picture_url: photoUrl }),
     }),
   me: () => request<UserResponse>("/auth/me"),
 };

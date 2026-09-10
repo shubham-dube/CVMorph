@@ -85,47 +85,41 @@ export default function DashboardPage() {
     <>
       <Topbar title="Overview Dashboard" />
       <main className="flex-1 p-6 max-w-7xl w-full mx-auto space-y-6">
-        {/* Hero Greeting Section */}
-        <div className="relative overflow-hidden rounded-[var(--radius-lg)] border border-border bg-gradient-to-br from-surface via-surface/90 to-accent-soft/20 p-6 md:p-8 shadow-sm">
-          <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
-            <div>
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-accent-soft/60 border border-accent/20 text-accent text-xs font-semibold mb-3">
-                <Sparkles className="h-3.5 w-3.5" />
-                <span>AI Candidate Studio Active</span>
-              </div>
-              <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-text">
-                Welcome back{user?.email ? `, ${user.email.split("@")[0]}` : ""}
-              </h2>
-              <p className="mt-1 text-sm text-text-muted">
-                {todayFormatted} • Monitor your candidate pipelines, multiple profile iterations, and formatted exports.
-              </p>
-            </div>
+        {/* Greeting Section */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-1">
+          <div>
+            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-text">
+              Welcome back{user?.name ? `, ${user.name}` : user?.email ? `, ${user.email.split("@")[0]}` : ""}
+            </h2>
+            <p className="mt-1 text-xs sm:text-sm text-text-muted font-medium">
+              {todayFormatted}
+            </p>
+          </div>
 
-            <div className="flex flex-wrap items-center gap-3">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => refetch()}
-                disabled={isFetching}
-                className="text-xs h-9"
-              >
-                <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${isFetching ? "animate-spin" : ""}`} />
-                Refresh
-              </Button>
-              <Button
-                size="sm"
-                onClick={() => router.push("/upload")}
-                className="text-xs font-semibold h-9 shadow-md shadow-accent/20"
-              >
-                <UploadCloud className="h-4 w-4 mr-1.5" />
-                Upload New CV
-              </Button>
-            </div>
+          <div className="flex items-center gap-2.5">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => refetch()}
+              disabled={isFetching}
+              className="text-xs h-9"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${isFetching ? "animate-spin" : ""}`} />
+              Refresh
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => router.push("/upload")}
+              className="text-xs font-semibold h-9 shadow-sm shadow-accent/20"
+            >
+              <UploadCloud className="h-4 w-4 mr-1.5" />
+              Upload CV
+            </Button>
           </div>
         </div>
 
-        {/* 4 Executive KPI Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* 3 Executive KPI Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
           {/* Card 1: Total Candidates */}
           <Card className="relative overflow-hidden border border-border bg-surface hover:border-border-focus transition-all">
             <CardContent className="p-5">
@@ -145,13 +139,10 @@ export default function DashboardPage() {
                     <span className="text-3xl font-extrabold text-text">
                       {stats?.total_candidates ?? 0}
                     </span>
-                    <span className="text-xs text-text-muted font-medium">registered</span>
+                    <span className="text-xs text-text-muted font-medium">candidates</span>
                   </div>
                 )}
-                <p className="mt-1 text-xs text-text-muted flex items-center gap-1">
-                  <TrendingUp className="h-3 w-3 text-sky-400" />
-                  Primary candidate roster
-                </p>
+                <p className="mt-1 text-xs text-text-muted">Registered in candidate directory</p>
               </div>
             </CardContent>
           </Card>
@@ -161,7 +152,7 @@ export default function DashboardPage() {
             <CardContent className="p-5">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold uppercase tracking-wider text-text-faint">
-                  Profiles Generated
+                  Profiles Created
                 </span>
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-500/10 text-purple-400">
                   <FileText className="h-4 w-4" />
@@ -178,7 +169,7 @@ export default function DashboardPage() {
                     <span className="text-xs text-purple-400 font-medium">
                       {(stats?.total_profiles ?? 0) > (stats?.total_candidates ?? 0)
                         ? `+${(stats?.total_profiles ?? 0) - (stats?.total_candidates ?? 0)} tailored`
-                        : "multi-profile enabled"}
+                        : "active versions"}
                     </span>
                   </div>
                 )}
@@ -187,47 +178,15 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
 
-          {/* Card 3: Avg Confidence */}
+          {/* Card 3: Total Formatted CVs Generated */}
           <Card className="relative overflow-hidden border border-border bg-surface hover:border-border-focus transition-all">
             <CardContent className="p-5">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold uppercase tracking-wider text-text-faint">
-                  Extraction Quality
-                </span>
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent-soft text-accent">
-                  <Sparkles className="h-4 w-4" />
-                </div>
-              </div>
-              <div className="mt-3">
-                {isLoading ? (
-                  <Skeleton className="h-8 w-16" />
-                ) : (
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-3xl font-extrabold text-text">
-                      {stats?.avg_confidence !== null && stats?.avg_confidence !== undefined
-                        ? formatPercent(stats.avg_confidence)
-                        : "94%"}
-                    </span>
-                    <span className="text-xs text-accent font-medium">High Trust</span>
-                  </div>
-                )}
-                <p className="mt-1 text-xs text-text-muted flex items-center gap-1">
-                  <ShieldCheck className="h-3 w-3 text-accent" />
-                  Fact-verified against source CVs
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Card 4: Ready / Approved Rate */}
-          <Card className="relative overflow-hidden border border-border bg-surface hover:border-border-focus transition-all">
-            <CardContent className="p-5">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold uppercase tracking-wider text-text-faint">
-                  Approval Rate
+                  Total CVs Generated
                 </span>
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-400">
-                  <CheckCircle2 className="h-4 w-4" />
+                  <Download className="h-4 w-4" />
                 </div>
               </div>
               <div className="mt-3">
@@ -236,20 +195,12 @@ export default function DashboardPage() {
                 ) : (
                   <div className="flex items-baseline gap-2">
                     <span className="text-3xl font-extrabold text-text">
-                      {formatPercent(stats?.approval_rate ?? 1)}
+                      {stats?.total_generations ?? 0}
                     </span>
-                    <span className="text-xs text-text-muted font-medium">
-                      ({stats?.approved_profiles ?? 0}/{stats?.total_profiles ?? 0})
-                    </span>
+                    <span className="text-xs text-emerald-400 font-medium">exports</span>
                   </div>
                 )}
-                {/* Progress bar */}
-                <div className="mt-2 h-1.5 w-full rounded-full bg-border overflow-hidden">
-                  <div
-                    className="h-full bg-emerald-500 transition-all duration-500"
-                    style={{ width: `${Math.round((stats?.approval_rate ?? 1) * 100)}%` }}
-                  />
-                </div>
+                <p className="mt-1 text-xs text-text-muted">Compiled DOCX & PDF documents exported</p>
               </div>
             </CardContent>
           </Card>
@@ -534,16 +485,7 @@ export default function DashboardPage() {
               </CardContent>
             </Card>
 
-            {/* Fact-Checking & Provenance Guarantee Banner */}
-            <div className="rounded-[var(--radius-md)] border border-border/80 bg-surface/40 p-4 space-y-2">
-              <div className="flex items-center gap-2 text-xs font-semibold text-text">
-                <ShieldCheck className="h-4 w-4 text-emerald-400" />
-                <span>3-Way Verification Standard</span>
-              </div>
-              <p className="text-[11px] text-text-muted leading-relaxed">
-                Every extracted bullet point and skill is tagged with source provenance. When generating tailored versions, any introduced embellishments are clearly flagged in the Review Studio.
-              </p>
-            </div>
+
           </div>
         </div>
       </main>
