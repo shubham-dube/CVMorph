@@ -230,4 +230,13 @@ Once deployment completes, verify:
 - **Custom Domain**: In Vercel Project Settings → **Domains**, add your custom domain (e.g. `cvmorph.com`). Both frontend and backend immediately inherit the domain with SSL auto-provisioned. Update `CORS_ORIGINS` to include your new domain.
 - **Change AI Model**: Update `GEMINI_MODEL` in Vercel environment variables (e.g. to a future model release).
 - **Change Storage Bucket**: Update `R2_BUCKET` in Vercel environment variables. On next container start, `seed.py` will automatically upload the official templates to the new bucket.
+- **Switching Vercel Accounts or Re-linking**: If you ever switch Vercel accounts or transfer the project to a different team, clear any local cached project links to prevent `Error: Not authorized`:
+  ```bash
+  vercel logout
+  # Clear local cached link (PowerShell: Remove-Item -Recurse -Force .vercel, .env.local)
+  rm -rf .vercel .env.local
+  vercel login
+  vercel --prod
+  ```
+  Vercel will prompt you to select your new account/team and link the project cleanly.
 - **Run Locally Without Vercel**: Run `docker compose up --build` to run the complete stack locally on `http://localhost:8000` and `http://localhost:3000`.
