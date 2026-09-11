@@ -23,7 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.db.session import AsyncSessionLocal
-from app.models import Organization, Template, User, Generation
+from app.models import Organization, Template, Generation
 from app.services.storage.object_store import get_object_store
 
 logger = logging.getLogger("cvmorph.seed")
@@ -44,39 +44,39 @@ MODERN_SIDEBAR_ID = "18999c91-951a-50cd-8301-85800101dcf3"
 SYSTEM_TEMPLATES_CONFIG = [
     {
         "id": CLASSIC_PROFESSIONAL_ID,
-        "filename": "Classic Professional.docx",
         "name": "Classic Professional",
-        "description": "Clean single-column executive layout with clear typographic hierarchy, structured bullet highlights, and comprehensive employment sections.",
+        "description": "Standard corporate single-column resume template with clean horizontal dividing lines and serif typography.",
+        "filename": "Classic Professional.docx",
         "storage_key": "templates/system/classic-professional.docx",
         "config_json": {
-            "sections": ["candidate", "career_summary", "technical_skills", "employment", "education"],
-            "required_fields": ["candidate.full_name", "candidate.role_title"],
+            "sections": ["summary", "skills", "experience", "education", "projects", "certifications"],
+            "required_fields": ["candidate.full_name", "candidate.email"],
             "max_summary_bullets": 8,
             "max_responsibilities_per_job": 10,
         },
     },
     {
         "id": CONTEMPORARY_HEADER_ID,
-        "filename": "Contemporary Header.docx",
         "name": "Contemporary Header",
-        "description": "Modern top-header design with horizontal contact band, streamlined technical skills table, and refined project breakdowns.",
+        "description": "Polished design featuring an accent color banner header, crisp typography, and high information density.",
+        "filename": "Contemporary Header.docx",
         "storage_key": "templates/system/contemporary-header.docx",
         "config_json": {
-            "sections": ["candidate", "career_summary", "technical_skills", "employment", "education"],
-            "required_fields": ["candidate.full_name", "candidate.role_title"],
+            "sections": ["summary", "skills", "experience", "education", "projects", "certifications"],
+            "required_fields": ["candidate.full_name", "candidate.email"],
             "max_summary_bullets": 8,
             "max_responsibilities_per_job": 10,
         },
     },
     {
         "id": MODERN_SIDEBAR_ID,
-        "filename": "Modern Sidebar.docx",
         "name": "Modern Sidebar",
-        "description": "Distinctive two-column accent layout featuring a compact sidebar for contact and skills with prominent career narrative.",
+        "description": "Sophisticated two-column layout placing contact info, skills, and education into a sleek sidebar column.",
+        "filename": "Modern Sidebar.docx",
         "storage_key": "templates/system/modern-sidebar.docx",
         "config_json": {
-            "sections": ["candidate", "technical_skills", "education", "career_summary", "employment"],
-            "required_fields": ["candidate.full_name", "candidate.role_title"],
+            "sections": ["summary", "skills", "experience", "education", "projects", "certifications"],
+            "required_fields": ["candidate.full_name", "candidate.email"],
             "max_summary_bullets": 8,
             "max_responsibilities_per_job": 10,
         },
@@ -86,66 +86,29 @@ SYSTEM_TEMPLATES_CONFIG = [
 
 async def seed() -> None:
     store = get_object_store()
-    logger.info("Starting CVMorph system seed...")
+    logger.info("Starting CVMorph system seed (resume templates)...")
     logger.info("Seed templates directory: %s", _SEED_TEMPLATES_DIR)
 
     async with AsyncSessionLocal() as session:
-        # ── 1. Internal System Organization ──────────────────────────────────
-        org_result = await session.execute(
-            select(Organization).where(
-                or_(
-                    Organization.name == settings.SEED_ORG_NAME,
-                    Organization.name == "Copious",
-                )
+        # Retrieve existing org_id for template foreign key (Template.org_id is non-nullable)
+        first_org_id = (
+            await session.execute(
+                select(Organization.id).order_by(Organization.created_at.asc())
             )
-        )
-        org = org_result.scalar_one_or_none()
+        ).scalars().first()
 
-        if org:
-            if org.name != settings.SEED_ORG_NAME:
-                logger.info("Updating existing org '%s' name to '%s'", org.name, settings.SEED_ORG_NAME)
-                org.name = settings.SEED_ORG_NAME
-                await session.flush()
-            else:
-                logger.info("Org '%s' already exists (id=%s)", org.name, org.id)
-        else:
-            org = Organization(
+        if not first_org_id:
+            # Fallback only if database has no organizations yet
+            system_org = Organization(
                 id=str(uuid.uuid4()),
-                name=settings.SEED_ORG_NAME,
+                name="System",
                 plan_tier="internal",
-                branding_config={
-                    "logo_url": None,
-                    "primary_color": "#1A1A2E",
-                    "secondary_color": "#6366F1",
-                    "font": "Inter",
-                },
             )
-            session.add(org)
+            session.add(system_org)
             await session.flush()
-            logger.info("Created system org '%s' with id=%s", org.name, org.id)
+            first_org_id = system_org.id
 
-        # ── 2. Admin User ────────────────────────────────────────────────────
-        user_result = await session.execute(
-            select(User).where(User.email == settings.SEED_ADMIN_EMAIL)
-        )
-        admin = user_result.scalar_one_or_none()
-
-        if admin:
-            logger.info("Admin user '%s' already exists", admin.email)
-        else:
-            admin = User(
-                id=str(uuid.uuid4()),
-                org_id=org.id,
-                email=settings.SEED_ADMIN_EMAIL,
-                name="CVMorph Admin",
-                role="admin",
-                is_active=True,
-            )
-            session.add(admin)
-            await session.flush()
-            logger.info("Created admin user '%s'", admin.email)
-
-        # ── 3. Seed Official System Templates from apps/api/seed/templates ──
+        # ── Seed Official System Templates from apps/api/seed/templates ──────
         valid_system_ids = set()
 
         for tpl_info in SYSTEM_TEMPLATES_CONFIG:
@@ -170,8 +133,10 @@ async def seed() -> None:
 
             # Check if template already exists by ID
             existing_tpl = (
-                await session.execute(select(Template).where(Template.id == tpl_id))
-            ).scalar_one_or_none()
+                await session.execute(
+                    select(Template).where(Template.id == tpl_id).order_by(Template.created_at.asc())
+                )
+            ).scalars().first()
 
             if existing_tpl:
                 existing_tpl.name = tpl_info["name"]
@@ -185,7 +150,7 @@ async def seed() -> None:
             else:
                 new_tpl = Template(
                     id=tpl_id,
-                    org_id=org.id,
+                    org_id=first_org_id,
                     name=tpl_info["name"],
                     description=tpl_info["description"],
                     config_json=tpl_info["config_json"],
