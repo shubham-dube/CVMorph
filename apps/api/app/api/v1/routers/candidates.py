@@ -106,10 +106,18 @@ class TailorProfileRequest(BaseModel):
 
 
 class CreateCandidateFromTextRequest(BaseModel):
-    name: str
+    name: str | None = None
+    full_name: str | None = None
     role_title: str | None = None
+    email: str | None = None
+    phone: str | None = None
+    location: str | None = None
     raw_text: str
     instructions: str | None = None
+    target_role: str | None = None
+    job_description: str | None = None
+    bluff_level: str | None = "none"
+    custom_prompt: str | None = None
 
 
 class CandidateListResponse(BaseModel):
@@ -120,7 +128,8 @@ class CandidateListResponse(BaseModel):
 
 
 class CreateCandidateRequest(BaseModel):
-    name: str
+    name: str | None = None
+    full_name: str | None = None
 
 
 class ProfileResponse(BaseModel):
@@ -380,9 +389,15 @@ async def create_candidate(
     user: CurrentUser,
     db: ScopedDB,
 ) -> CandidateResponse:
+    candidate_name = (body.full_name or body.name or "").strip()
+    if not candidate_name:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Candidate name is required",
+        )
     candidate = Candidate(
         org_id=user.org_id,
-        name=body.name,
+        name=candidate_name,
     )
     db.add(candidate)
     await db.flush()  # get the id before commit
@@ -692,12 +707,13 @@ async def create_candidate_from_text(
 ) -> ProfileResponse:
     from app.services.extraction.provider_factory import get_provider
 
-    if not body.name.strip():
+    candidate_name = (body.full_name or body.name or "").strip()
+    if not candidate_name:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Candidate name is required",
         )
-    if not body.raw_text.strip():
+    if not body.raw_text or not body.raw_text.strip():
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="CV text content is required",
@@ -706,27 +722,78 @@ async def create_candidate_from_text(
     # 1. Create candidate record
     candidate = Candidate(
         org_id=user.org_id,
-        name=body.name.strip(),
+        name=candidate_name,
     )
     db.add(candidate)
     await db.flush()
 
-    # 2. Run extraction via Gemini
-    instructions = body.instructions
-    if body.role_title:
-        instructions = f"Target Role: {body.role_title}\n{instructions or ''}".strip()
+    # 2. Build extraction instructions
+    effective_role = (body.target_role or body.role_title or "").strip() or None
+    instructions_parts: list[str] = []
+    if effective_role:
+        instructions_parts.append(f"Target Role: {effective_role}")
+    if body.email and body.email.strip():
+        instructions_parts.append(f"Candidate Email: {body.email.strip()}")
+    if body.phone and body.phone.strip():
+        instructions_parts.append(f"Candidate Phone: {body.phone.strip()}")
+    if body.location and body.location.strip():
+        instructions_parts.append(f"Candidate Location: {body.location.strip()}")
+    if body.instructions and body.instructions.strip():
+        instructions_parts.append(body.instructions.strip())
+    if body.custom_prompt and body.custom_prompt.strip():
+        instructions_parts.append(body.custom_prompt.strip())
 
+    instructions = "\n".join(instructions_parts) if instructions_parts else None
+
+    # Run extraction via AI provider
     provider = get_provider()
     extracted_profile = await provider.extract(
-        raw_text=body.raw_text,
+        raw_text=body.raw_text.strip(),
         org_id=user.org_id,
         candidate_id=candidate.id,
         source_document_id="text_input",
         instructions=instructions,
     )
 
-    if body.role_title:
-        extracted_profile.candidate.role_title = body.role_title.strip()
+    # Ensure explicitly provided basic candidate info overrides or backfills extracted data
+    extracted_profile.candidate.full_name = candidate_name
+    if effective_role:
+        extracted_profile.candidate.role_title = effective_role
+    if body.email and body.email.strip():
+        extracted_profile.candidate.email = body.email.strip()
+    if body.phone and body.phone.strip():
+        extracted_profile.candidate.phone = body.phone.strip()
+    if body.location and body.location.strip():
+        extracted_profile.candidate.location = body.location.strip()
+
+    # Optional JD Tailoring at creation time
+    effective_bluff = body.bluff_level or "none"
+    if body.job_description and body.job_description.strip():
+        try:
+            from app.services.extraction.tailoring_service import ProfileTailoringService
+            tailor_service = ProfileTailoringService()
+            extracted_profile = await tailor_service.tailor(
+                base_profile=extracted_profile,
+                job_description=body.job_description.strip(),
+                custom_prompt=body.custom_prompt,
+                bluff_level=effective_bluff,
+                target_role=effective_role,
+                org_id=user.org_id,
+                candidate_id=candidate.id,
+                source_document_id=None,
+            )
+            # Re-ensure explicit fields persist
+            extracted_profile.candidate.full_name = candidate_name
+            if effective_role:
+                extracted_profile.candidate.role_title = effective_role
+            if body.email and body.email.strip():
+                extracted_profile.candidate.email = body.email.strip()
+            if body.phone and body.phone.strip():
+                extracted_profile.candidate.phone = body.phone.strip()
+            if body.location and body.location.strip():
+                extracted_profile.candidate.location = body.location.strip()
+        except Exception as te:
+            logger.warning("Tailoring failed during from-text creation: %s", te)
 
     profile_json = extracted_profile.model_dump(mode="json")
 
@@ -736,7 +803,10 @@ async def create_candidate_from_text(
         candidate_id=candidate.id,
         source_document_id=None,
         title="Primary Profile",
-        target_role=body.role_title.strip() if body.role_title else extracted_profile.candidate.role_title,
+        target_role=effective_role or extracted_profile.candidate.role_title,
+        job_description=body.job_description.strip() if body.job_description else None,
+        custom_prompt=body.custom_prompt.strip() if body.custom_prompt else None,
+        bluff_level=effective_bluff,
         profile_json=profile_json,
         extraction_status="ready_for_review",
         extraction_model=extracted_profile.meta.extraction_model,

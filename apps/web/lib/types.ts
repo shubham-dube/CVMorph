@@ -215,6 +215,7 @@ export interface TailorProfileRequest {
 
 export interface CreateCandidateFromTextRequest {
   full_name: string;
+  name?: string;
   raw_text?: string;
   role_title?: string;
   email?: string;

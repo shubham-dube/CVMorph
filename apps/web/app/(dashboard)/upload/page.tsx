@@ -129,6 +129,7 @@ export default function UploadPage() {
     setSubmittingText(true);
     try {
       const res = await candidatesApi.createFromText({
+        name: fullName.trim(),
         full_name: fullName.trim(),
         role_title: roleTitle.trim() || undefined,
         email: email.trim() || undefined,
