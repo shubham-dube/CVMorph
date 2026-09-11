@@ -20,6 +20,7 @@ import { Textarea } from "@/components/ui/Input";
 import { candidatesApi, ApiError } from "@/lib/api-client";
 import type { AgentChatMessage, CandidateProfile } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { ChatMessageContent, renderInline } from "./ChatMessageContent";
 
 interface AIAgentDrawerProps {
   candidateId: string;
@@ -196,7 +197,7 @@ export function AIAgentDrawer({
                     : "bg-bg border border-border text-text shadow-2xs"
                 )}
               >
-                <p className="whitespace-pre-wrap">{msg.content}</p>
+                <ChatMessageContent content={msg.content} isUser={isUser} />
 
                 {/* Changes Summary Pills */}
                 {msg.changes_summary && msg.changes_summary.length > 0 && (
@@ -221,7 +222,7 @@ export function AIAgentDrawer({
                         {msg.changes_summary.map((c, i) => (
                           <li key={i} className="flex items-start gap-1.5">
                             <span className="text-purple-500 font-bold">•</span>
-                            <span>{c}</span>
+                            <span>{renderInline(c, false)}</span>
                           </li>
                         ))}
                       </ul>
