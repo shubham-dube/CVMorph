@@ -317,28 +317,34 @@ Connect your GitHub repository to both Vercel projects:
 - Pushing to `staging` deploys to your staging domain.
 - Pushing to `master` deploys to your production domain.
 
-##### Method B: Vercel CLI from Local Machine
-To deploy directly using Vercel CLI to either target project without Git push:
+##### Method B: Automated CLI Deployment Script (No Linking & No GitHub Required)
+To deploy directly from your local terminal to either target without manually linking, unlinking, or connecting GitHub, use the automated deployment runner:
 
-1. **Deploy to Staging**:
-   ```bash
-   vercel link --project cvmorph-staging --yes
-   vercel --prod
-   ```
+```bash
+# 1. Deploy only to Staging:
+npm run deploy:staging
+# or via PowerShell:
+.\deploy.ps1 staging
 
-2. **Deploy to Production**:
-   ```bash
-   vercel link --project cvmorph --yes
-   vercel --prod
-   ```
+# 2. Deploy only to Production:
+npm run deploy:prod
+# or via PowerShell:
+.\deploy.ps1 prod
 
-3. **Or configure convenience scripts in root `package.json`**:
-   ```json
-   {
-     "scripts": {
-       "deploy:staging": "vercel link --project cvmorph-staging --yes && vercel --prod",
-       "deploy:prod": "vercel link --project cvmorph --yes && vercel --prod"
-     }
-   }
-   ```
+# 3. Deploy to Both (Staging first, then Production):
+npm run deploy:all
+# or via PowerShell:
+.\deploy.ps1 all
+
+# 4. Interactive selection menu:
+npm run deploy
+# or via PowerShell:
+.\deploy.ps1
+```
+
+###### How It Works Under the Hood:
+- **Zero manual prompts**: The script uses Vercel CLI's native `--project <name>` switch and automatically synchronizes `.vercel/project.json` from dedicated profiles (`.vercel/project.staging.json` and `.vercel/project.prod.json`).
+- **Auto-creates missing projects**: If `cvmorph-staging` does not yet exist on your Vercel team, the script automatically provisions it via `vercel project add`.
+- **Environment Isolation**: Because each target is a distinct Vercel project, each deployment automatically pulls its own environment variables (Supabase DB, R2 Bucket, Gemini key) and deploys to its own distinct domain.
+
 

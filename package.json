@@ -6,7 +6,11 @@
     "dev": "pnpm --filter web dev",
     "build": "pnpm --filter web build",
     "lint": "pnpm --filter web lint && pnpm --filter shared-types build",
-    "typecheck": "pnpm --filter web typecheck && pnpm --filter shared-types typecheck"
+    "typecheck": "pnpm --filter web typecheck && pnpm --filter shared-types typecheck",
+    "deploy": "node scripts/deploy.mjs",
+    "deploy:staging": "node scripts/deploy.mjs staging",
+    "deploy:prod": "node scripts/deploy.mjs prod",
+    "deploy:all": "node scripts/deploy.mjs all"
   },
   "workspaces": [
     "apps/web",
