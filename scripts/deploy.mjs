@@ -3,13 +3,13 @@
 /**
  * CVMorph Unified Multi-Environment Deployment Script
  *
- * Allows seamless deployment to Staging, Production, or Both without
+ * Allows seamless deployment to Dev, Production, or Both without
  * manual project linking/unlinking and without requiring GitHub integration.
  *
  * Usage:
- *   node scripts/deploy.mjs staging    # Deploy only to Staging
+ *   node scripts/deploy.mjs dev        # Deploy only to Dev
  *   node scripts/deploy.mjs prod       # Deploy only to Production
- *   node scripts/deploy.mjs all        # Deploy to Staging, then Production
+ *   node scripts/deploy.mjs all        # Deploy to Dev, then Production
  *   node scripts/deploy.mjs            # Interactive selection menu
  */
 
@@ -33,12 +33,12 @@ const ENV_CONFIG = {
     domainHint: 'https://cvmorph-fawn.vercel.app (or custom domain)',
     backupConfig: resolve(VERCEL_DIR, 'project.prod.json'),
   },
-  staging: {
-    key: 'staging',
-    name: process.env.VERCEL_STAGING_PROJECT || 'cvmorph-staging',
-    label: 'Staging / Dev',
-    domainHint: 'https://cvmorph-staging.vercel.app',
-    backupConfig: resolve(VERCEL_DIR, 'project.staging.json'),
+  dev: {
+    key: 'dev',
+    name: process.env.VERCEL_DEV_PROJECT || process.env.VERCEL_STAGING_PROJECT || 'cvmorph-dev',
+    label: 'Development (Dev)',
+    domainHint: 'https://cvmorph-dev.vercel.app',
+    backupConfig: resolve(VERCEL_DIR, 'project.dev.json'),
   },
 };
 
@@ -192,27 +192,27 @@ function promptSelection() {
   console.log('\n\x1b[36m╔═══════════════════════════════════════════════════════════╗');
   console.log('║           CVMorph Multi-Environment Deployment            ║');
   console.log('╚═══════════════════════════════════════════════════════════╝\x1b[0m\n');
-  console.log('  \x1b[1m[1]\x1b[0m Staging / Dev  (\x1b[33mcvmorph-staging\x1b[0m)');
+  console.log('  \x1b[1m[1]\x1b[0m Development    (\x1b[33mcvmorph-dev\x1b[0m)');
   console.log('  \x1b[1m[2]\x1b[0m Production     (\x1b[32mcvmorph\x1b[0m)');
-  console.log('  \x1b[1m[3]\x1b[0m Both           (\x1b[35mStaging first, then Production\x1b[0m)');
+  console.log('  \x1b[1m[3]\x1b[0m Both           (\x1b[35mDev first, then Production\x1b[0m)');
   console.log('  \x1b[1m[4]\x1b[0m Cancel / Exit\n');
 
   rl.question('Select target [1-4]: ', async (ans) => {
     rl.close();
     const choice = ans.trim();
 
-    if (choice === '1' || choice.toLowerCase() === 'staging') {
-      await runDeploy('staging');
+    if (choice === '1' || choice.toLowerCase() === 'dev' || choice.toLowerCase() === 'staging') {
+      await runDeploy('dev');
     } else if (choice === '2' || choice.toLowerCase() === 'prod' || choice.toLowerCase() === 'production') {
       await runDeploy('prod');
     } else if (choice === '3' || choice.toLowerCase() === 'both' || choice.toLowerCase() === 'all') {
-      log('\nDeploying to Staging first...');
-      const ok = await runDeploy('staging');
+      log('\nDeploying to Dev first...');
+      const ok = await runDeploy('dev');
       if (ok) {
-        log('\nStaging deployment completed. Now deploying to Production...');
+        log('\nDev deployment completed. Now deploying to Production...');
         await runDeploy('prod');
       } else {
-        error('Staging deployment failed. Aborting Production deployment.');
+        error('Dev deployment failed. Aborting Production deployment.');
       }
     } else {
       log('Deployment cancelled.');
@@ -227,18 +227,18 @@ async function main() {
 
   const arg = (process.argv[2] || '').toLowerCase();
 
-  if (arg === 'staging' || arg === 'stage' || arg === 'dev') {
-    await runDeploy('staging');
+  if (arg === 'dev' || arg === 'development' || arg === 'staging' || arg === 'stage') {
+    await runDeploy('dev');
   } else if (arg === 'prod' || arg === 'production') {
     await runDeploy('prod');
   } else if (arg === 'all' || arg === 'both') {
-    log('\nDeploying to Staging first...');
-    const ok = await runDeploy('staging');
+    log('\nDeploying to Dev first...');
+    const ok = await runDeploy('dev');
     if (ok) {
-      log('\nStaging deployment completed. Now deploying to Production...');
+      log('\nDev deployment completed. Now deploying to Production...');
       await runDeploy('prod');
     } else {
-      error('Staging deployment failed. Aborting Production deployment.');
+      error('Dev deployment failed. Aborting Production deployment.');
     }
   } else if (arg === 'help' || arg === '--help' || arg === '-h') {
     console.log(`
@@ -247,9 +247,9 @@ Usage:
   npm run deploy:[target]
 
 Targets:
-  staging    Deploy exclusively to Staging (cvmorph-staging)
+  dev        Deploy exclusively to Development (cvmorph-dev)
   prod       Deploy exclusively to Production (cvmorph)
-  all        Deploy sequentially to Staging then Production
+  all        Deploy sequentially to Dev then Production
   (none)     Interactive terminal menu
     `);
   } else {

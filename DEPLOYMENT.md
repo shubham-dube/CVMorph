@@ -245,20 +245,20 @@ Once deployment completes, verify:
 
 ## 7. Multi-Environment & Multi-Domain Architecture
 
-When you need two separate deployments with **different environments** (e.g., Staging vs Production, or two distinct clients) and **separate domains**, here is the industry-standard architecture and configuration.
+When you need two separate deployments with **different environments** (e.g., Dev vs Production, or two distinct clients) and **separate domains**, here is the industry-standard architecture and configuration.
 
 ### Architecture Overview
 
 ```
  ┌──────────────────────────────────────────────┐   ┌──────────────────────────────────────────────┐
- │         ENVIRONMENT A: STAGING               │   │        ENVIRONMENT B: PRODUCTION             │
- │     Domain: staging.cvmorph.com             │   │        Domain: app.cvmorph.com               │
- │     (or cvmorph-staging.vercel.app)          │   │        (or cvmorph-prod.vercel.app)          │
+ │         ENVIRONMENT A: DEV                   │   │        ENVIRONMENT B: PRODUCTION             │
+ │     Domain: dev.cvmorph.com                  │   │        Domain: app.cvmorph.com               │
+ │     (or cvmorph-dev.vercel.app)              │   │        (or cvmorph-prod.vercel.app)          │
  └──────────────────────┬───────────────────────┘   └──────────────────────┬───────────────────────┘
                         │                                                  │
                         ▼                                                  ▼
  ┌──────────────────────────────────────────────┐   ┌──────────────────────────────────────────────┐
- │          Vercel Project: cvmorph-staging     │   │         Vercel Project: cvmorph-prod         │
+ │          Vercel Project: cvmorph-dev         │   │         Vercel Project: cvmorph-prod         │
  │  ┌────────────────────┐ ┌──────────────────┐ │   │  ┌────────────────────┐ ┌──────────────────┐ │
  │  │  Web (Next.js)     │ │  API Container   │ │   │  │  Web (Next.js)     │ │  API Container   │ │
  │  │  apps/web          │ │  apps/api        │ │   │  │  apps/web          │ │  apps/api        │ │
@@ -268,31 +268,31 @@ When you need two separate deployments with **different environments** (e.g., St
                     ┌───────────────┴───────────────┐                  ┌───────────────┴───────────────┐
                     ▼                               ▼                  ▼                               ▼
        ┌────────────────────────┐      ┌────────────────────────┐ ┌────────────────────────┐      ┌────────────────────────┐
-       │ Supabase (Staging DB)  │      │ Cloudflare R2 (Staging)│ │ Supabase (Prod DB)     │      │ Cloudflare R2 (Prod)   │
-       │ Multi-tenant isolation │      │ Bucket: cvmorph-staging│ │ Multi-tenant isolation │      │ Bucket: cvmorph-prod   │
+       │ Supabase (Dev DB)      │      │ Cloudflare R2 (Dev)    │ │ Supabase (Prod DB)     │      │ Cloudflare R2 (Prod)   │
+       │ Multi-tenant isolation │      │ Bucket: cvmorph-dev    │ │ Multi-tenant isolation │      │ Bucket: cvmorph-prod   │
        └────────────────────────┘      └────────────────────────┘ └────────────────────────┘      └────────────────────────┘
 ```
 
 ### Strategy: Two Isolated Vercel Projects (Recommended)
 
-Maintaining two distinct Vercel projects (e.g. `cvmorph-staging` and `cvmorph-prod`) built from the same codebase provides:
-1. **Zero Data/Secret Contamination**: Staging database migrations or test resumes never touch production data.
-2. **Dedicated Domains**: Each project has its own assigned production domain (e.g., `staging.yourdomain.com` and `app.yourdomain.com`).
-3. **Independent Cloudflare R2 Buckets**: Staging templates and generated candidate resumes live in their own bucket.
+Maintaining two distinct Vercel projects (e.g. `cvmorph-dev` and `cvmorph`) built from the same codebase provides:
+1. **Zero Data/Secret Contamination**: Dev database migrations or test resumes never touch production data.
+2. **Dedicated Domains**: Each project has its own assigned production domain (e.g., `dev.yourdomain.com` and `app.yourdomain.com`).
+3. **Independent Cloudflare R2 Buckets**: Dev templates and generated candidate resumes live in their own bucket.
 
 ---
 
 ### Step-by-Step Setup
 
-#### 1. Create Staging & Production Resources
+#### 1. Create Dev & Production Resources
 Ensure you have provisioned:
-- **Databases**: Two PostgreSQL connection strings (e.g., Supabase Staging vs Supabase Production).
-- **Object Storage**: Two Cloudflare R2 buckets (e.g., `cvmorph-staging` and `cvmorph-prod`).
+- **Databases**: Two PostgreSQL connection strings (e.g., Supabase Dev vs Supabase Production).
+- **Object Storage**: Two Cloudflare R2 buckets (e.g., `cvmorph-dev` and `cvmorph-prod`).
 - **Firebase Auth**: Either two Firebase projects or separate authorized redirect domains in Firebase Console.
 
 #### 2. Configure Environments in Vercel
 
-##### For Production (`cvmorph-prod` or `cvmorph`):
+##### For Production (`cvmorph`):
 - Assign domain: `app.cvmorph.com` or `cvmorph-fawn.vercel.app`
 - Set Production environment variables:
   - `DATABASE_URL=postgresql+asyncpg://...@prod-db.supabase.co:5432/postgres`
@@ -300,38 +300,38 @@ Ensure you have provisioned:
   - `CORS_ORIGINS=["https://app.cvmorph.com","https://cvmorph-fawn.vercel.app"]`
   - Production `GEMINI_API_KEY`, `JWT_SECRET_KEY`, and `NEXT_PUBLIC_FIREBASE_*`
 
-##### For Staging (`cvmorph-staging`):
-- Assign domain: `staging.cvmorph.com` or `cvmorph-staging.vercel.app`
+##### For Dev (`cvmorph-dev`):
+- Assign domain: `dev.cvmorph.com` or `cvmorph-dev.vercel.app`
 - Set Production environment variables on this project:
-  - `DATABASE_URL=postgresql+asyncpg://...@staging-db.supabase.co:5432/postgres`
-  - `R2_BUCKET=cvmorph-staging`
-  - `CORS_ORIGINS=["https://staging.cvmorph.com","https://cvmorph-staging.vercel.app"]`
-  - Staging `GEMINI_API_KEY`, `JWT_SECRET_KEY`, and `NEXT_PUBLIC_FIREBASE_*`
+  - `DATABASE_URL=postgresql+asyncpg://...@dev-db.supabase.co:5432/postgres`
+  - `R2_BUCKET=cvmorph-dev`
+  - `CORS_ORIGINS=["https://dev.cvmorph.com","https://cvmorph-dev.vercel.app"]`
+  - Dev `GEMINI_API_KEY`, `JWT_SECRET_KEY`, and `NEXT_PUBLIC_FIREBASE_*`
 
 #### 3. How to Deploy Each Environment
 
 ##### Method A: Git Branches (Automated CI/CD)
 Connect your GitHub repository to both Vercel projects:
-- In Vercel Project `cvmorph-staging` → set Production Branch to `staging`
-- In Vercel Project `cvmorph-prod` → set Production Branch to `master` (or `main`)
-- Pushing to `staging` deploys to your staging domain.
+- In Vercel Project `cvmorph-dev` → set Production Branch to `dev`
+- In Vercel Project `cvmorph` → set Production Branch to `master` (or `main`)
+- Pushing to `dev` deploys to your dev domain.
 - Pushing to `master` deploys to your production domain.
 
 ##### Method B: Automated CLI Deployment Script (No Linking & No GitHub Required)
 To deploy directly from your local terminal to either target without manually linking, unlinking, or connecting GitHub, use the automated deployment runner:
 
 ```bash
-# 1. Deploy only to Staging:
-npm run deploy:staging
+# 1. Deploy only to Dev:
+npm run deploy:dev
 # or via PowerShell:
-.\deploy.ps1 staging
+.\deploy.ps1 dev
 
 # 2. Deploy only to Production:
 npm run deploy:prod
 # or via PowerShell:
 .\deploy.ps1 prod
 
-# 3. Deploy to Both (Staging first, then Production):
+# 3. Deploy to Both (Dev first, then Production):
 npm run deploy:all
 # or via PowerShell:
 .\deploy.ps1 all
@@ -343,8 +343,8 @@ npm run deploy
 ```
 
 ###### How It Works Under the Hood:
-- **Zero manual prompts**: The script uses Vercel CLI's native `--project <name>` switch and automatically synchronizes `.vercel/project.json` from dedicated profiles (`.vercel/project.staging.json` and `.vercel/project.prod.json`).
-- **Auto-creates missing projects**: If `cvmorph-staging` does not yet exist on your Vercel team, the script automatically provisions it via `vercel project add`.
+- **Zero manual prompts**: The script uses Vercel CLI's native `--project <name>` switch and automatically synchronizes `.vercel/project.json` from dedicated profiles (`.vercel/project.dev.json` and `.vercel/project.prod.json`).
+- **Auto-creates missing projects**: If `cvmorph-dev` does not yet exist on your Vercel team, the script automatically provisions it via `vercel project add`.
 - **Environment Isolation**: Because each target is a distinct Vercel project, each deployment automatically pulls its own environment variables (Supabase DB, R2 Bucket, Gemini key) and deploys to its own distinct domain.
 
 
