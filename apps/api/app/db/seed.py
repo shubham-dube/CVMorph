@@ -18,12 +18,10 @@ import sys
 import uuid
 from pathlib import Path
 
-from sqlalchemy import delete, or_, select, update
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import or_, select, update
 
-from app.core.config import settings
 from app.db.session import AsyncSessionLocal
-from app.models import Organization, Template, Generation
+from app.models import Generation, Organization, Template
 from app.services.storage.object_store import get_object_store
 
 logger = logging.getLogger("cvmorph.seed")

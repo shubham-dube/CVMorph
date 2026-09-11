@@ -91,12 +91,14 @@ app.include_router(jobs.router,        prefix=API_PREFIX, tags=["jobs"])
 # ── Health + readiness probes ──────────────────────────────────────────────────
 
 @app.get("/health", tags=["health"], summary="Liveness probe")
+@app.get("/v1/health", tags=["health"], summary="Liveness probe")
 async def health() -> dict[str, str]:
     """Returns 200 if the process is alive. Used by Docker / load balancer."""
     return {"status": "ok", "version": "1.0.0"}
 
 
 @app.get("/ready", tags=["health"], summary="Readiness probe")
+@app.get("/v1/ready", tags=["health"], summary="Readiness probe")
 async def ready() -> dict[str, str]:
     """
     Returns 200 when the application is ready to serve traffic.
