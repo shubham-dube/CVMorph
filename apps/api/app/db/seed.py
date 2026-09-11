@@ -22,7 +22,6 @@ from sqlalchemy import delete, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.security import hash_password
 from app.db.session import AsyncSessionLocal
 from app.models import Organization, Template, User, Generation
 from app.services.storage.object_store import get_object_store
@@ -138,7 +137,7 @@ async def seed() -> None:
                 id=str(uuid.uuid4()),
                 org_id=org.id,
                 email=settings.SEED_ADMIN_EMAIL,
-                hashed_password=hash_password(settings.SEED_ADMIN_PASSWORD),
+                name="CVMorph Admin",
                 role="admin",
                 is_active=True,
             )
