@@ -308,7 +308,21 @@ Ensure you have provisioned:
   - `CORS_ORIGINS=["https://dev.cvmorph.com","https://cvmorph-dev.vercel.app"]`
   - Dev `GEMINI_API_KEY`, `JWT_SECRET_KEY`, and `NEXT_PUBLIC_FIREBASE_*`
 
-#### 3. How to Deploy Each Environment
+#### 3. How Environment Variables are Injected (Dual-Layer Strategy)
+
+Environment variables are injected cleanly into each deployment without mixing or cross-contamination:
+
+| Layer | Dev (`npm run deploy:dev`) | Production (`npm run deploy:prod`) |
+|---|---|---|
+| **Web Frontend** | Injects `apps/web/.env.dev` → `apps/web/.env` | Injects `apps/web/.env.prod` → `apps/web/.env` |
+| **API Backend** | Injects `apps/api/.env.dev` → `apps/api/.env` | Injects `apps/api/.env.prod` → `apps/api/.env` |
+| **Vercel Cloud Variables** | Attached to project `cvmorph-dev` | Attached to project `cvmorph` |
+| **Same-Domain Relative Routing** | `NEXT_PUBLIC_API_URL=""` (routes to dev container) | `NEXT_PUBLIC_API_URL=""` (routes to prod container) |
+| **Local Development** | `apps/web/.env.local` (`http://localhost:8000`) | N/A |
+
+The deployment runner automatically swaps the corresponding `.env.dev` or `.env.prod` files into `.env` right before Vercel builds the bundle or container. This ensures Dev credentials never leak into Production and vice versa.
+
+#### 4. How to Deploy Each Environment
 
 ##### Method A: Git Branches (Automated CI/CD)
 Connect your GitHub repository to both Vercel projects:

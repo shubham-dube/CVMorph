@@ -14,7 +14,7 @@
  */
 
 import { spawnSync, spawn, execSync } from 'node:child_process';
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, mkdirSync, copyFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import readline from 'node:readline';
@@ -142,6 +142,34 @@ function backupProjectJsonAfterDeploy(targetConfig) {
   }
 }
 
+function prepareEnvFiles(envKey) {
+  log(`Applying environment configuration for [${envKey.toUpperCase()}]...`, '\x1b[36m');
+
+  // apps/web (.env.dev / .env.prod -> .env)
+  const webTargetEnv = resolve(ROOT_DIR, 'apps', 'web', `.env.${envKey}`);
+  const webActiveEnv = resolve(ROOT_DIR, 'apps', 'web', '.env');
+  if (existsSync(webTargetEnv)) {
+    try {
+      copyFileSync(webTargetEnv, webActiveEnv);
+      success(`Injected apps/web/.env from .env.${envKey}`);
+    } catch (e) {
+      warn(`Failed to copy apps/web/.env.${envKey}: ${e.message}`);
+    }
+  }
+
+  // apps/api (.env.dev / .env.prod -> .env)
+  const apiTargetEnv = resolve(ROOT_DIR, 'apps', 'api', `.env.${envKey}`);
+  const apiActiveEnv = resolve(ROOT_DIR, 'apps', 'api', '.env');
+  if (existsSync(apiTargetEnv)) {
+    try {
+      copyFileSync(apiTargetEnv, apiActiveEnv);
+      success(`Injected apps/api/.env from .env.${envKey}`);
+    } catch (e) {
+      warn(`Failed to copy apps/api/.env.${envKey}: ${e.message}`);
+    }
+  }
+}
+
 async function runDeploy(envKey) {
   const target = ENV_CONFIG[envKey];
   if (!target) {
@@ -154,6 +182,7 @@ async function runDeploy(envKey) {
   log(`  Domain target: ${target.domainHint}`, '\x1b[90m');
   log(`===============================================================\n`, '\x1b[35m');
 
+  prepareEnvFiles(target.key);
   ensureVercelProjectExists(target.name);
   syncProjectJson(target);
 
