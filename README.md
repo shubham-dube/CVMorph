@@ -9,7 +9,7 @@
 ## Key Features
 
 - **Multi-Source Intake**: Upload raw PDFs and DOCX files or paste unstructured text backgrounds with target role positioning.
-- **AI Extraction & Provenance Tracking**: Extracts structured career summaries, grouped technical competencies, chronologically formatted employment, and education using Google Gemini 2.5 Flash. Every field carries confidence scores and traceable evidence spans.
+- **AI Extraction & Provenance Tracking**: Extracts structured career summaries, grouped technical competencies, chronologically formatted employment, and education using Google Gemini 3.5 Flash. Every field carries confidence scores and traceable evidence spans.
 - **Strategic Role Alignment & Bluffing Engine**: 4-tier granular alignment slider (`Strict Facts`, `Role Focus`, `Role Alignment`, `Scope Expansion`) to adapt candidate experience directly against a target Job Description with audit trails for extrapolated claims.
 - **Interactive Review Studio**: In-browser side-by-side editing, low-confidence flag verification, and instant inline candidate updates.
 - **AI Profile Copilot**: Built-in conversational sidecar enabling recruiters to command complex transformations (e.g. "Condense summary to 3 high-impact bullets", "Quantify bullet points with latency and throughput metrics", "Add Docker and Kubernetes to DevOps").
@@ -40,7 +40,7 @@ cvmorph/
 | **Frontend** | Next.js 16, React 19, TypeScript, Tailwind CSS, TanStack Query, Lucide Icons, Sonner |
 | **Backend** | FastAPI, Python 3.12, Pydantic v2, SQLAlchemy (asyncpg), Alembic, docxtpl |
 | **Document Processing** | PyMuPDF, headless LibreOffice, python-docx, poppler-utils |
-| **AI / LLM** | Google Gemini 2.5 Flash (`google-genai`), Claude Structured Outputs compatible |
+| **AI / LLM** | Google Gemini 3.5 Flash (`google-genai`), Claude Structured Outputs compatible |
 | **Database** | PostgreSQL 16+ (Supabase / local Docker) with multi-tenant row-level security |
 | **Storage** | Cloudflare R2 (S3-compatible) with zero egress bandwidth fees |
 | **Package Management** | Python: `uv` · Node.js: `npm` |
@@ -91,12 +91,13 @@ Open `http://localhost:3000` in your browser.
 
 ## Production Deployment
 
-CVMorph is designed for high-availability production deployment with:
-- **Frontend**: Next.js deployed on **Vercel**.
-- **Backend**: Containerized FastAPI deployed on **Railway**, **Render**, **Fly.io**, **AWS ECS**, or a **VPS**.
-- **Same-Domain Routing**: Unified origin routing via reverse proxy rewrites to eliminate CORS preflights and cookie blocking.
+Both the Next.js frontend and containerized FastAPI backend deploy together onto **Vercel** with a single command:
+```bash
+vercel --prod
+```
+The monorepo uses [`vercel.json`](vercel.json) to route both services under the exact same domain, eliminating CORS preflights and cookie restrictions.
 
-Refer to [**`DEPLOYMENT.md`**](DEPLOYMENT.md) for the complete, step-by-step production deployment guide.
+Refer to [**`DEPLOYMENT.md`**](DEPLOYMENT.md) for the complete cloud setup guide (Supabase PostgreSQL, Cloudflare R2, Google Gemini 3.5 Flash, and Vercel).
 
 ---
 

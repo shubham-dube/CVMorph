@@ -81,7 +81,7 @@ class Settings(BaseSettings):
     AI_DEFAULT_MODEL: str = "claude-sonnet-4-5"
     AI_EXTRACTION_VERSION: str = "v1"
     GEMINI_API_KEY: str = ""
-    GEMINI_MODEL: str = "gemini-2.5-flash"
+    GEMINI_MODEL: str = "gemini-3.5-flash"
 
     # ── Storage ────────────────────────────────────────────────────────────
     STORAGE_BACKEND: Literal["local", "s3", "r2"] = "local"
