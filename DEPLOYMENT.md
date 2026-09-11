@@ -240,3 +240,105 @@ Once deployment completes, verify:
   ```
   Vercel will prompt you to select your new account/team and link the project cleanly.
 - **Run Locally Without Vercel**: Run `docker compose up --build` to run the complete stack locally on `http://localhost:8000` and `http://localhost:3000`.
+
+---
+
+## 7. Multi-Environment & Multi-Domain Architecture
+
+When you need two separate deployments with **different environments** (e.g., Staging vs Production, or two distinct clients) and **separate domains**, here is the industry-standard architecture and configuration.
+
+### Architecture Overview
+
+```
+ ┌──────────────────────────────────────────────┐   ┌──────────────────────────────────────────────┐
+ │         ENVIRONMENT A: STAGING               │   │        ENVIRONMENT B: PRODUCTION             │
+ │     Domain: staging.cvmorph.com             │   │        Domain: app.cvmorph.com               │
+ │     (or cvmorph-staging.vercel.app)          │   │        (or cvmorph-prod.vercel.app)          │
+ └──────────────────────┬───────────────────────┘   └──────────────────────┬───────────────────────┘
+                        │                                                  │
+                        ▼                                                  ▼
+ ┌──────────────────────────────────────────────┐   ┌──────────────────────────────────────────────┐
+ │          Vercel Project: cvmorph-staging     │   │         Vercel Project: cvmorph-prod         │
+ │  ┌────────────────────┐ ┌──────────────────┐ │   │  ┌────────────────────┐ ┌──────────────────┐ │
+ │  │  Web (Next.js)     │ │  API Container   │ │   │  │  Web (Next.js)     │ │  API Container   │ │
+ │  │  apps/web          │ │  apps/api        │ │   │  │  apps/web          │ │  apps/api        │ │
+ │  └────────────────────┘ └────────┬─────────┘ │   │  └────────────────────┘ └────────┬─────────┘ │
+ └──────────────────────────────────┼───────────┘   └──────────────────────────────────┼───────────┘
+                                    │                                                  │
+                    ┌───────────────┴───────────────┐                  ┌───────────────┴───────────────┐
+                    ▼                               ▼                  ▼                               ▼
+       ┌────────────────────────┐      ┌────────────────────────┐ ┌────────────────────────┐      ┌────────────────────────┐
+       │ Supabase (Staging DB)  │      │ Cloudflare R2 (Staging)│ │ Supabase (Prod DB)     │      │ Cloudflare R2 (Prod)   │
+       │ Multi-tenant isolation │      │ Bucket: cvmorph-staging│ │ Multi-tenant isolation │      │ Bucket: cvmorph-prod   │
+       └────────────────────────┘      └────────────────────────┘ └────────────────────────┘      └────────────────────────┘
+```
+
+### Strategy: Two Isolated Vercel Projects (Recommended)
+
+Maintaining two distinct Vercel projects (e.g. `cvmorph-staging` and `cvmorph-prod`) built from the same codebase provides:
+1. **Zero Data/Secret Contamination**: Staging database migrations or test resumes never touch production data.
+2. **Dedicated Domains**: Each project has its own assigned production domain (e.g., `staging.yourdomain.com` and `app.yourdomain.com`).
+3. **Independent Cloudflare R2 Buckets**: Staging templates and generated candidate resumes live in their own bucket.
+
+---
+
+### Step-by-Step Setup
+
+#### 1. Create Staging & Production Resources
+Ensure you have provisioned:
+- **Databases**: Two PostgreSQL connection strings (e.g., Supabase Staging vs Supabase Production).
+- **Object Storage**: Two Cloudflare R2 buckets (e.g., `cvmorph-staging` and `cvmorph-prod`).
+- **Firebase Auth**: Either two Firebase projects or separate authorized redirect domains in Firebase Console.
+
+#### 2. Configure Environments in Vercel
+
+##### For Production (`cvmorph-prod` or `cvmorph`):
+- Assign domain: `app.cvmorph.com` or `cvmorph-fawn.vercel.app`
+- Set Production environment variables:
+  - `DATABASE_URL=postgresql+asyncpg://...@prod-db.supabase.co:5432/postgres`
+  - `R2_BUCKET=cvmorph-prod`
+  - `CORS_ORIGINS=["https://app.cvmorph.com","https://cvmorph-fawn.vercel.app"]`
+  - Production `GEMINI_API_KEY`, `JWT_SECRET_KEY`, and `NEXT_PUBLIC_FIREBASE_*`
+
+##### For Staging (`cvmorph-staging`):
+- Assign domain: `staging.cvmorph.com` or `cvmorph-staging.vercel.app`
+- Set Production environment variables on this project:
+  - `DATABASE_URL=postgresql+asyncpg://...@staging-db.supabase.co:5432/postgres`
+  - `R2_BUCKET=cvmorph-staging`
+  - `CORS_ORIGINS=["https://staging.cvmorph.com","https://cvmorph-staging.vercel.app"]`
+  - Staging `GEMINI_API_KEY`, `JWT_SECRET_KEY`, and `NEXT_PUBLIC_FIREBASE_*`
+
+#### 3. How to Deploy Each Environment
+
+##### Method A: Git Branches (Automated CI/CD)
+Connect your GitHub repository to both Vercel projects:
+- In Vercel Project `cvmorph-staging` → set Production Branch to `staging`
+- In Vercel Project `cvmorph-prod` → set Production Branch to `master` (or `main`)
+- Pushing to `staging` deploys to your staging domain.
+- Pushing to `master` deploys to your production domain.
+
+##### Method B: Vercel CLI from Local Machine
+To deploy directly using Vercel CLI to either target project without Git push:
+
+1. **Deploy to Staging**:
+   ```bash
+   vercel link --project cvmorph-staging --yes
+   vercel --prod
+   ```
+
+2. **Deploy to Production**:
+   ```bash
+   vercel link --project cvmorph --yes
+   vercel --prod
+   ```
+
+3. **Or configure convenience scripts in root `package.json`**:
+   ```json
+   {
+     "scripts": {
+       "deploy:staging": "vercel link --project cvmorph-staging --yes && vercel --prod",
+       "deploy:prod": "vercel link --project cvmorph --yes && vercel --prod"
+     }
+   }
+   ```
+
