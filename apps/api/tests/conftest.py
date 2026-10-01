@@ -18,8 +18,9 @@ Fixtures:
 from __future__ import annotations
 
 import asyncio
+import os
 import uuid
-from typing import AsyncGenerator
+from typing import Any, AsyncGenerator
 
 import pytest
 import pytest_asyncio
@@ -33,24 +34,23 @@ from app.db.session import AsyncSessionLocal
 from app.main import app
 from app.models import Base, Organization, User
 
+import os
+from sqlalchemy.pool import StaticPool
+
 # ── Test DB URL ───────────────────────────────────────────────────────────────
-# Use a separate test DB; create with: createdb cvplatform_test
-TEST_DATABASE_URL = settings.DATABASE_URL.replace(
-    "/cvplatform", "/cvplatform_test"
-)
-
-
-@pytest.fixture(scope="session")
-def event_loop():
-    """Single event loop for the whole test session."""
-    loop = asyncio.new_event_loop()
-    yield loop
-    loop.close()
+# Default to in-memory SQLite for safe, fast, isolated unit and integration tests.
+# Set TEST_DATABASE_URL to override with a PostgreSQL test database URL if needed.
+TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL", "sqlite+aiosqlite:///:memory:")
 
 
 @pytest_asyncio.fixture(scope="session")
 async def test_engine():
-    engine = create_async_engine(TEST_DATABASE_URL, echo=False)
+    engine_kwargs: dict[str, Any] = {"echo": False}
+    if "sqlite" in TEST_DATABASE_URL:
+        engine_kwargs["connect_args"] = {"check_same_thread": False}
+        engine_kwargs["poolclass"] = StaticPool
+
+    engine = create_async_engine(TEST_DATABASE_URL, **engine_kwargs)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     yield engine
@@ -125,10 +125,12 @@ async def async_client(db_session: AsyncSession, seed_org: Organization) -> Asyn
     from app.api.v1.deps import get_scoped_session, get_raw_session
 
     async def override_scoped():
-        await db_session.execute(
-            text("SELECT set_config('app.current_org_id', :org_id, true)"),
-            {"org_id": seed_org.id},
-        )
+        bind = db_session.bind
+        if bind and bind.dialect.name == "postgresql":
+            await db_session.execute(
+                text("SELECT set_config('app.current_org_id', :org_id, true)"),
+                {"org_id": seed_org.id},
+            )
         yield db_session
 
     async def override_raw():

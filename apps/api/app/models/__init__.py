@@ -93,6 +93,7 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(320), nullable=False)
     name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     picture_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    hashed_password: Mapped[str | None] = mapped_column(String(255), nullable=True)
     google_sub: Mapped[str | None] = mapped_column(String(255), nullable=True)  # OAuth subject
     role: Mapped[str] = mapped_column(
         Enum("admin", "recruiter", name="user_role_enum"), nullable=False, default="recruiter"

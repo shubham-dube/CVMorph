@@ -66,12 +66,33 @@ class UserResponse(BaseModel):
     "/login",
     response_model=TokenResponse,
     summary="Login with email and password",
-    description="Password authentication has been retired in favor of verified Google login.",
+    description="Authenticates active user with email and password and returns access token.",
 )
 async def login(body: LoginRequest, db: DBSession) -> TokenResponse:
-    raise HTTPException(
-        status_code=status.HTTP_400_BAD_REQUEST,
-        detail="Password authentication is disabled. Please sign in with your verified Google account.",
+    result = await db.execute(
+        select(User).where(User.email == body.email, User.is_active.is_(True))
+    )
+    user: User | None = result.scalar_one_or_none()
+
+    if (
+        not user
+        or not user.hashed_password
+        or not verify_password(body.password, user.hashed_password)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid email or password",
+        )
+
+    token = create_access_token(
+        subject=user.id,
+        org_id=user.org_id,
+        role=user.role,
+    )
+
+    return TokenResponse(
+        access_token=token,
+        expires_in=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60,
     )
 
 

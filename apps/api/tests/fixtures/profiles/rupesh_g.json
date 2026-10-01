@@ -44,35 +44,35 @@
         "skills": ["Platform Engineering Strategy & Roadmap", "Enterprise & Solution Architecture", "Distributed Systems", "Technical Mentoring"],
         "confidence": 0.9,
         "source_type": "source",
-        "evidence": null
+        "evidence": "Platform Engineering Strategy & Roadmap, Enterprise & Solution Architecture, Distributed Systems, Technical Mentoring"
       },
       {
         "category": "Programming Languages",
         "skills": ["Java", "TypeScript", "Python", "SQL"],
         "confidence": 0.97,
         "source_type": "source",
-        "evidence": null
+        "evidence": "Java, TypeScript, Python, SQL"
       },
       {
         "category": "Frameworks & Libraries",
         "skills": ["Spring Boot", "React", "Node.js", "Hibernate"],
         "confidence": 0.95,
         "source_type": "source",
-        "evidence": null
+        "evidence": "Spring Boot, React, Node.js, Hibernate"
       },
       {
         "category": "Cloud & DevOps",
         "skills": ["AWS", "Docker", "Kubernetes", "GitHub Actions", "Terraform"],
         "confidence": 0.93,
         "source_type": "source",
-        "evidence": null
+        "evidence": "AWS, Docker, Kubernetes, GitHub Actions, Terraform"
       },
       {
         "category": "Databases",
         "skills": ["PostgreSQL", "MySQL", "MongoDB", "Redis"],
         "confidence": 0.95,
         "source_type": "source",
-        "evidence": null
+        "evidence": "PostgreSQL, MySQL, MongoDB, Redis"
       }
     ]
   },

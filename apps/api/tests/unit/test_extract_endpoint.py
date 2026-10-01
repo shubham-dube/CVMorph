@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, patch
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from app.api.v1.deps import AuthenticatedUser, get_current_user
 from app.api.v1.routers.extract import router
 from app.schemas.candidate_profile import (
     Candidate,
@@ -24,6 +25,11 @@ from app.schemas.candidate_profile import (
 
 app = FastAPI()
 app.include_router(router, prefix="/v1")
+app.dependency_overrides[get_current_user] = lambda: AuthenticatedUser(
+    user_id="test-user-id",
+    org_id="test-org-id",
+    role="admin",
+)
 client = TestClient(app)
 
 
