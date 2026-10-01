@@ -29,7 +29,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
-from sqlalchemy.dialects.postgresql import JSON, UUID
+from sqlalchemy.dialects.postgresql import JSON, JSONB, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -124,8 +124,17 @@ class Candidate(Base):
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     master_profile_id: Mapped[str | None] = mapped_column(
-        UUID(as_uuid=False), nullable=True
-    )  # FK set after first profile is approved
+        UUID(as_uuid=False),
+        ForeignKey(
+            "candidate_profiles.id",
+            ondelete="SET NULL",
+            use_alter=True,
+            name="fk_candidates_master_profile_id",
+        ),
+        nullable=True,
+    )
+    is_deleted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now
     )
@@ -136,7 +145,9 @@ class Candidate(Base):
     org: Mapped[Organization] = relationship("Organization", back_populates="candidates")
     documents: Mapped[list[Document]] = relationship("Document", back_populates="candidate")
     profiles: Mapped[list[CandidateProfile]] = relationship(
-        "CandidateProfile", back_populates="candidate"
+        "CandidateProfile",
+        back_populates="candidate",
+        foreign_keys="[CandidateProfile.candidate_id]",
     )
     generations: Mapped[list[Generation]] = relationship(
         "Generation", back_populates="candidate"
@@ -225,7 +236,7 @@ class CandidateProfile(Base):
     parent_profile_id: Mapped[str | None] = mapped_column(
         UUID(as_uuid=False), ForeignKey("candidate_profiles.id", ondelete="SET NULL"), nullable=True
     )
-    profile_json: Mapped[dict] = mapped_column(JSON, nullable=False)
+    profile_json: Mapped[dict] = mapped_column(JSONB().with_variant(JSON, "sqlite"), nullable=False)
     extraction_status: Mapped[str] = mapped_column(
         String(50), nullable=False, default="pending"
     )
@@ -245,7 +256,9 @@ class CandidateProfile(Base):
         DateTime(timezone=True), nullable=False, default=_now, onupdate=_now
     )
 
-    candidate: Mapped[Candidate] = relationship("Candidate", back_populates="profiles")
+    candidate: Mapped[Candidate] = relationship(
+        "Candidate", back_populates="profiles", foreign_keys="[CandidateProfile.candidate_id]"
+    )
     source_document: Mapped[Document] = relationship("Document", back_populates="profiles")
     review_events: Mapped[list[ReviewEvent]] = relationship(
         "ReviewEvent", back_populates="profile"
@@ -272,8 +285,8 @@ class Template(Base):
     __tablename__ = "templates"
 
     id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=_uuid)
-    org_id: Mapped[str] = mapped_column(
-        UUID(as_uuid=False), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    org_id: Mapped[str | None] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=True
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -284,6 +297,8 @@ class Template(Base):
     )  # "docx" | "latex"
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     is_system: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    is_deleted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_by: Mapped[str | None] = mapped_column(
         UUID(as_uuid=False), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
@@ -339,6 +354,8 @@ class Generation(Base):
     completed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    is_deleted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now
     )
