@@ -203,7 +203,7 @@ export default function LandingPage() {
             </div>
           ) : (
             <div className="bg-bg-elevated rounded-[var(--radius-md)] p-6 sm:p-8 text-left border border-border/70 font-mono text-xs text-text-muted space-y-3 opacity-80">
-              <p className="text-danger font-semibold">// Raw unformatted CV text prior to parsing</p>
+              <p className="text-danger font-semibold">{"// Raw unformatted CV text prior to parsing"}</p>
               <p>ALEX MORGAN | Lead Cloud Architect | email: alex.morgan@cloudsystems.io | San Francisco, CA</p>
               <p>SUMMARY: 10+ yrs distributed cloud systems, high throughput microservices, kubernetes, terraform, aws, go, rust</p>
               <p>EXPERIENCE: Staff Systems Architect at CloudCorp (2021-Present) - Led engineering team of 14, orchestrated multi-region Kubernetes deployments, reduced downtime to 99.99%.</p>

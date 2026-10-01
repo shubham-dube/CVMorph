@@ -81,7 +81,7 @@ class Settings(BaseSettings):
     AI_DEFAULT_MODEL: str = "claude-sonnet-4-5"
     AI_EXTRACTION_VERSION: str = "v1"
     GEMINI_API_KEY: str = ""
-    GEMINI_MODEL: str = "gemini-3.5-flash"
+    GEMINI_MODEL: str = "gemini-2.5-flash"
 
     # ── Storage ────────────────────────────────────────────────────────────
     STORAGE_BACKEND: Literal["local", "s3", "r2"] = "local"
@@ -97,7 +97,7 @@ class Settings(BaseSettings):
     R2_ACCOUNT_ID: str = ""
     R2_ACCESS_KEY_ID: str = ""
     R2_SECRET_ACCESS_KEY: str = ""
-    R2_BUCKET: str = "cvmorph"
+    R2_BUCKET: str = "copious-cvs"
     R2_PUBLIC_URL: str = ""  # Optional: public URL prefix for direct access
 
     # ── Auth (JWT) ─────────────────────────────────────────────────────────
@@ -105,13 +105,13 @@ class Settings(BaseSettings):
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 30  # 30 days session expiry
 
     # ── Seed data ──────────────────────────────────────────────────────────
-    SEED_ORG_NAME: str = "CVMorph"
-    SEED_ADMIN_EMAIL: str = "admin@cvmorph.com"
-    SEED_ADMIN_PASSWORD: str = "CVMorph@123"
+    SEED_ORG_NAME: str = "Copious"
+    SEED_ADMIN_EMAIL: str = "admin@copious.com"
+    SEED_ADMIN_PASSWORD: str = "Copious@123"
 
     # ── Branding ───────────────────────────────────────────────────────────
-    BRAND_NAME: str = "CVMorph"
-    BRAND_TAGLINE: str = "AI-powered CV transformation"
+    BRAND_NAME: str = "My Copious"
+    BRAND_TAGLINE: str = "AI-powered CV transformation engine"
 
 
 @lru_cache

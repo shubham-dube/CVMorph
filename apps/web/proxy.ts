@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 
 /**
  * Route guard. Checks for the mirrored (non-httpOnly) session cookie set
- * by the client after login — see docs/FRONTEND_BACKEND_GAPS.md §1 for
- * why this isn't a real httpOnly session and what should replace it.
+ * by the client after login — see docs/current-state/auth.md §3 for
+ * why this isn't a real httpOnly session and what will replace it in Task 7.
  */
 const PUBLIC_PATHS = ["/login"];
 
