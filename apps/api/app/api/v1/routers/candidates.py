@@ -23,7 +23,7 @@ import logging
 from datetime import UTC, datetime
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -37,13 +37,19 @@ from app.models import (
 from app.models import (
     CandidateProfile as CandidateProfileModel,
 )
+from app.repositories.candidate import CandidateRepository
 from app.schemas.candidate_profile import CandidateProfile
+from app.services.candidate_service import CandidateService
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/candidates")
 
 REVIEW_CONFIDENCE_THRESHOLD = 0.85
+
+
+def get_candidate_service(db: ScopedDB) -> CandidateService:
+    return CandidateService(CandidateRepository(db))
 
 
 # ── Response schemas ──────────────────────────────────────────────────────────
@@ -321,7 +327,10 @@ async def list_candidates(
     page_size: int = Query(20, ge=1, le=100),
     search: str | None = Query(None, description="Filter by name (partial match)"),
 ) -> CandidateListResponse:
-    query = select(Candidate).where(Candidate.org_id == user.org_id)
+    query = select(Candidate).where(
+        Candidate.org_id == user.org_id,
+        Candidate.is_deleted.is_(False),
+    )
 
     if search:
         query = query.where(Candidate.name.ilike(f"%{search}%"))
@@ -388,20 +397,10 @@ async def list_candidates(
 async def create_candidate(
     body: CreateCandidateRequest,
     user: CurrentUser,
-    db: ScopedDB,
+    service: CandidateService = Depends(get_candidate_service),
 ) -> CandidateResponse:
     candidate_name = (body.full_name or body.name or "").strip()
-    if not candidate_name:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Candidate name is required",
-        )
-    candidate = Candidate(
-        org_id=user.org_id,
-        name=candidate_name,
-    )
-    db.add(candidate)
-    await db.flush()  # get the id before commit
+    candidate = await service.create_candidate(user.org_id, candidate_name)
     return CandidateResponse.model_validate(candidate)
 
 
@@ -413,9 +412,9 @@ async def create_candidate(
 async def get_candidate(
     candidate_id: str,
     user: CurrentUser,
-    db: ScopedDB,
+    service: CandidateService = Depends(get_candidate_service),
 ) -> CandidateResponse:
-    candidate = await _get_candidate_or_404(candidate_id, user.org_id, db)
+    candidate = await service.get_candidate_or_404(candidate_id, user.org_id)
     return CandidateResponse.model_validate(candidate)
 
 
