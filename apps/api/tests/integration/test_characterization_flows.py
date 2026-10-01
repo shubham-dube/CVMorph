@@ -19,11 +19,12 @@ Covers critical flows:
 from __future__ import annotations
 
 import uuid
+
 import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Candidate, CandidateProfile, Organization, Template, User
+from app.models import Organization, Template
 
 
 @pytest.mark.asyncio

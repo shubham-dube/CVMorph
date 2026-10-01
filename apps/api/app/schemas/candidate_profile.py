@@ -21,16 +21,15 @@ RULES:
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 from typing import Annotated
 
 from pydantic import BaseModel, Field, model_validator
 
-
 # ── Provenance / trust primitives ─────────────────────────────────────────────
 
 
-class SourceType(str, Enum):
+class SourceType(StrEnum):
     """
     How the field's value relates to the original CV text.
 
@@ -121,7 +120,7 @@ class TechnicalSkills(BaseModel):
     groups: list[SkillGroup]
 
 
-class EducationType(str, Enum):
+class EducationType(StrEnum):
     degree = "degree"
     certification = "certification"
 

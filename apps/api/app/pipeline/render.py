@@ -27,10 +27,11 @@ import logging
 import re
 import tempfile
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from app.db.session import get_session_for_org
+from app.schemas.candidate_profile import CandidateProfile
 
 logger = logging.getLogger(__name__)
 
@@ -47,11 +48,13 @@ async def run_render(generation_id: str, org_id: str) -> None:
     Produces both PDF and DOCX outputs, stored in object storage.
     """
     import asyncio
+
     from sqlalchemy import select
 
     from app.models import (
-        Candidate,
         CandidateProfile as CandidateProfileModel,
+    )
+    from app.models import (
         Document,
         Generation,
         Template,
@@ -107,12 +110,13 @@ async def run_render(generation_id: str, org_id: str) -> None:
 
             # ── 3. Fetch Template + file ───────────────────────────────────────
             from sqlalchemy import or_
+
             from app.models import Organization
 
             tpl_result = await db.execute(
                 select(Template).where(
                     Template.id == generation.template_id,
-                    or_(Template.org_id == org_id, Template.is_system == True),
+                    or_(Template.org_id == org_id, Template.is_system.is_(True)),
                 )
             )
             template: Template | None = tpl_result.scalar_one_or_none()
@@ -147,7 +151,7 @@ async def run_render(generation_id: str, org_id: str) -> None:
 
             cand_name = profile.candidate.full_name or "Candidate"
             cand_role = profile.candidate.role_title or "CV"
-            date_str = datetime.now(tz=timezone.utc).strftime("%Y-%m-%d")
+            date_str = datetime.now(tz=UTC).strftime("%Y-%m-%d")
 
             formatted_title = (
                 naming_pattern.replace("{Name}", cand_name)
@@ -203,7 +207,7 @@ async def run_render(generation_id: str, org_id: str) -> None:
             await db.flush()
 
             # ── 8. Update Generation ───────────────────────────────────────────
-            now = datetime.now(tz=timezone.utc)
+            now = datetime.now(tz=UTC)
             db.add(generation)
             generation.status = "complete"
             generation.output_document_id = output_doc.id
@@ -250,7 +254,7 @@ async def run_render(generation_id: str, org_id: str) -> None:
 
 async def _render_docx(
     template_bytes: bytes,
-    profile: "CandidateProfile",
+    profile: CandidateProfile,
     tmpdir: Path,
 ) -> tuple[bytes, bytes]:
     """
@@ -258,8 +262,8 @@ async def _render_docx(
       template.docx + profile → docxtpl → output.docx → LibreOffice → output.pdf
     Returns (pdf_bytes, docx_bytes).
     """
-    from app.services.template_engine.docx_renderer import render as render_docx
     from app.services.template_engine.converter import docx_to_pdf
+    from app.services.template_engine.docx_renderer import render as render_docx
 
     tpl_path = tmpdir / "template.docx"
     tpl_path.write_bytes(template_bytes)
@@ -276,7 +280,7 @@ async def _render_docx(
 
 async def _render_latex(
     template_bytes: bytes,
-    profile: "CandidateProfile",
+    profile: CandidateProfile,
     tmpdir: Path,
 ) -> tuple[bytes, bytes]:
     """
@@ -284,8 +288,8 @@ async def _render_latex(
       template.tex.j2 + profile → Jinja2 → xelatex → output.pdf → LibreOffice → output.docx
     Returns (pdf_bytes, docx_bytes).
     """
-    from app.services.template_engine.latex_renderer import render as render_latex
     from app.services.template_engine.converter import pdf_to_docx
+    from app.services.template_engine.latex_renderer import render as render_latex
 
     tpl_path = tmpdir / "template.tex.j2"
     tpl_path.write_bytes(template_bytes)

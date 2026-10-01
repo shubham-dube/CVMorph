@@ -8,12 +8,10 @@ Provides sub-50ms loading for the Executive Dashboard without frontend request w
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
 
 from fastapi import APIRouter
 from pydantic import BaseModel
 from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import CurrentUser, ScopedDB
 from app.models import (

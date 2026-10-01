@@ -6,8 +6,6 @@ Epic 5.5 — these tests should pass as soon as richtext.py is implemented.
 
 from __future__ import annotations
 
-import pytest
-
 from app.services.template_engine.richtext import to_richtext
 
 

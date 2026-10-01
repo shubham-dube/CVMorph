@@ -26,7 +26,6 @@ from app.models import (
     Candidate,
     Organization,
     Template,
-    User,
 )
 
 

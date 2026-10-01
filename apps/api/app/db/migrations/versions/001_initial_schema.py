@@ -17,7 +17,8 @@ from __future__ import annotations
 
 import sqlalchemy as sa
 from alembic import op
-from sqlalchemy.dialects.postgresql import ENUM as PG_ENUM, JSON, UUID
+from sqlalchemy.dialects.postgresql import ENUM as PG_ENUM
+from sqlalchemy.dialects.postgresql import JSON, UUID
 
 # revision identifiers used by Alembic
 revision: str = "001"

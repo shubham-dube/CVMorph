@@ -56,12 +56,12 @@ async def get_current_user(
     """
     try:
         payload = decode_access_token(credentials.credentials)
-    except JWTError:
+    except JWTError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token",
             headers={"WWW-Authenticate": "Bearer"},
-        )
+        ) from exc
 
     user_id = payload.get("sub")
     org_id = payload.get("org")

@@ -11,7 +11,7 @@ For MVP (single org), /me is cleaner — the org is always derived from the JWT.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel
@@ -126,7 +126,7 @@ async def get_usage(
     base_query = select(UsageEvent).where(UsageEvent.org_id == user.org_id)
 
     if period == "this_month":
-        now = datetime.now(tz=timezone.utc)
+        now = datetime.now(tz=UTC)
         month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         base_query = base_query.where(UsageEvent.created_at >= month_start)
 

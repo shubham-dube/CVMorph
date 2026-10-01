@@ -132,11 +132,11 @@ async def create_template(
 
     try:
         config = json_mod.loads(config_json) if config_json else {}
-    except json_mod.JSONDecodeError:
+    except json_mod.JSONDecodeError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="config_json must be valid JSON",
-        )
+        ) from exc
 
     storage_url = None
     template_type = "docx"

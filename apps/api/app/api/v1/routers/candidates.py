@@ -19,9 +19,8 @@ Design notes:
 
 from __future__ import annotations
 
-import json
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query, status
@@ -29,12 +28,14 @@ from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.v1.deps import AdminUser, CurrentUser, ScopedDB
+from app.api.v1.deps import CurrentUser, ScopedDB
 from app.models import (
     Candidate,
-    CandidateProfile as CandidateProfileModel,
     ReviewEvent,
     User,
+)
+from app.models import (
+    CandidateProfile as CandidateProfileModel,
 )
 from app.schemas.candidate_profile import CandidateProfile
 
@@ -646,7 +647,7 @@ async def tailor_candidate_profile(
 ) -> ProfileResponse:
     from app.services.extraction.tailoring_service import ProfileTailoringService
 
-    candidate = await _get_candidate_or_404(candidate_id, user.org_id, db)
+    await _get_candidate_or_404(candidate_id, user.org_id, db)
     base_profile_row = None
     if body.base_profile_id:
         base_profile_row = await _get_profile_by_id_or_404(candidate_id, body.base_profile_id, user.org_id, db)
@@ -934,7 +935,7 @@ async def agent_edit_candidate_profile(
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=f"Stored profile data is invalid: {exc}",
-        )
+        ) from exc
 
     try:
         service = ProfileEditingAgentService()
@@ -948,7 +949,7 @@ async def agent_edit_candidate_profile(
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=str(exc),
-        )
+        ) from exc
     except HTTPException:
         raise
     except Exception as exc:
@@ -956,7 +957,7 @@ async def agent_edit_candidate_profile(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"AI agent edit failed: {str(exc)}",
-        )
+        ) from exc
 
     # Persist updated profile JSON
     profile_row.profile_json = updated_candidate_profile.model_dump(mode="json")
@@ -1080,13 +1081,13 @@ async def _execute_profile_approval(
         if not profile_row:
             profile_row = await _get_latest_profile_or_404(candidate_id, user.org_id, db)
 
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     if profile_row.extraction_status == "approved":
         return ApproveResponse(
             status="approved",
             profile_id=profile_row.id,
-            approved_at=profile_row.approved_at.isoformat() if profile_row.approved_at else datetime.now(tz=timezone.utc).isoformat(),
+            approved_at=profile_row.approved_at.isoformat() if profile_row.approved_at else datetime.now(tz=UTC).isoformat(),
             message="This profile is already approved.",
         )
 
@@ -1111,7 +1112,7 @@ async def _execute_profile_approval(
         if unreviewed:
             warning_note = f" Approved with {len(unreviewed)} low-confidence item(s) unreviewed."
 
-    now = datetime.now(tz=timezone.utc)
+    now = datetime.now(tz=UTC)
     profile_row.extraction_status = "approved"
     profile_row.approved_at = now
     profile_row.reviewed_by = user.user_id

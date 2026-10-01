@@ -11,15 +11,12 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import uuid
-from typing import Any
 
 from app.core.config import settings
 from app.schemas.candidate_profile import (
     CandidateProfile,
     ExtractedProfile,
     Meta,
-    SourceType,
 )
 from app.services.extraction.gemini_provider import _gemini_api_key
 from app.services.extraction.provider import ExtractionError

@@ -20,9 +20,11 @@ from sqlalchemy import func, or_, select
 from app.api.v1.deps import CurrentUser, ScopedDB
 from app.models import (
     Candidate,
-    CandidateProfile as CandidateProfileModel,
     Generation,
     Template,
+)
+from app.models import (
+    CandidateProfile as CandidateProfileModel,
 )
 
 router = APIRouter(prefix="/generations")
@@ -166,8 +168,8 @@ async def create_generation(
     template_result = await db.execute(
         select(Template).where(
             Template.id == body.template_id,
-            or_(Template.org_id == user.org_id, Template.is_system == True),
-            Template.is_active == True,  # noqa: E712
+            or_(Template.org_id == user.org_id, Template.is_system.is_(True)),
+            Template.is_active.is_(True),
         )
     )
     if not template_result.scalar_one_or_none():

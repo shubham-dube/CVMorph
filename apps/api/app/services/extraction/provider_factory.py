@@ -15,7 +15,8 @@ Pass provider_name="claude" to get ClaudeProvider (requires ANTHROPIC_API_KEY).
 
 from __future__ import annotations
 
-from app.services.extraction.provider import AIProvider, get_provider as _get_provider
+from app.services.extraction.provider import AIProvider
+from app.services.extraction.provider import get_provider as _get_provider
 
 
 def get_provider(provider_name: str | None = None) -> AIProvider:

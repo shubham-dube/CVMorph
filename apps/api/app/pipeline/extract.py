@@ -32,7 +32,8 @@ async def run_extract(document_id: str, org_id: str) -> None:
     """
     from sqlalchemy import select
 
-    from app.models import CandidateProfile as CandidateProfileModel, Document
+    from app.models import CandidateProfile as CandidateProfileModel
+    from app.models import Document
     from app.schemas.candidate_profile import CandidateProfile
     from app.services.extraction.provider import get_provider
     from app.services.extraction.validator import validate
@@ -138,6 +139,7 @@ async def run_extract(document_id: str, org_id: str) -> None:
 async def _mark_extract_failed(document_id: str, org_id: str) -> None:
     """Mark document as failed — isolated transaction."""
     from sqlalchemy import select
+
     from app.models import Document
 
     try:

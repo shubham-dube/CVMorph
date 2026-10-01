@@ -7,11 +7,11 @@ This module is the ONLY place that touches secrets / token logic.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from jose import JWTError, jwt
 import bcrypt
+from jose import JWTError, jwt
 
 from app.core.config import settings
 
@@ -44,7 +44,7 @@ def create_access_token(
       role  — "admin" | "recruiter"
       exp   — expiry timestamp
     """
-    now = datetime.now(tz=timezone.utc)
+    now = datetime.now(tz=UTC)
     expire = now + timedelta(minutes=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES)
     payload: dict[str, Any] = {
         "sub": subject,

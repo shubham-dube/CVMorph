@@ -35,6 +35,7 @@ async def _fetch_document(document_id: str, org_id: str, *, max_retries: int = 5
     connection the background task gets from the pool.
     """
     from sqlalchemy import select
+
     from app.models import Document
 
     for attempt in range(max_retries):
@@ -65,11 +66,12 @@ async def run_parse(document_id: str, org_id: str) -> None:
     Parse a raw document into clean text, then chain AI extraction.
     Called via FastAPI BackgroundTasks — runs in the API process event loop.
     """
+    from sqlalchemy import select
+
     from app.models import Document
     from app.services.parsing import docx_parser, pdf_parser
     from app.services.parsing.text_extractor import ParseError
     from app.services.storage.object_store import get_object_store
-    from sqlalchemy import select
 
     logger.info("parse: started document=%s org=%s", document_id, org_id)
 
@@ -164,6 +166,7 @@ async def run_parse(document_id: str, org_id: str) -> None:
 async def _mark_document_failed(document_id: str, org_id: str) -> None:
     """Mark a document as failed — isolated transaction so it always commits."""
     from sqlalchemy import select
+
     from app.models import Document
 
     try:

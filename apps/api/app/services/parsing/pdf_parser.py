@@ -34,8 +34,8 @@ def extract_text(file_bytes: bytes) -> str:
     """
     try:
         import fitz  # PyMuPDF
-    except ImportError:
-        raise ParseError("PyMuPDF (fitz) is not installed. Run: pip install PyMuPDF")
+    except ImportError as exc:
+        raise ParseError("PyMuPDF (fitz) is not installed. Run: pip install PyMuPDF") from exc
 
     try:
         doc = fitz.open(stream=file_bytes, filetype="pdf")

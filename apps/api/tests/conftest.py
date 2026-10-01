@@ -17,25 +17,21 @@ Fixtures:
 
 from __future__ import annotations
 
-import asyncio
 import os
 import uuid
-from typing import Any, AsyncGenerator
+from collections.abc import AsyncGenerator
+from typing import Any
 
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.pool import StaticPool
 
-from app.core.config import settings
 from app.core.security import create_access_token, hash_password
-from app.db.session import AsyncSessionLocal
 from app.main import app
 from app.models import Base, Organization, User
-
-import os
-from sqlalchemy.pool import StaticPool
 
 # ── Test DB URL ───────────────────────────────────────────────────────────────
 # Default to in-memory SQLite for safe, fast, isolated unit and integration tests.
@@ -122,7 +118,7 @@ async def async_client(db_session: AsyncSession, seed_org: Organization) -> Asyn
     HTTPX client with the FastAPI app. Overrides the DB dependency to use
     the test transactional session so tests don't hit a real DB.
     """
-    from app.api.v1.deps import get_scoped_session, get_raw_session
+    from app.api.v1.deps import get_raw_session, get_scoped_session
 
     async def override_scoped():
         bind = db_session.bind

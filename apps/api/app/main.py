@@ -8,26 +8,26 @@ Boot sequence:
   4. Mount all v1 routers under /v1/.
 """
 
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.v1.routers import (
+    auth,
+    candidates,
+    dashboard,
+    documents,
+    extract,
+    generations,
+    jobs,
+    orgs,
+    templates,
+)
 from app.core.config import settings
 from app.core.logging import configure_logging
 from app.db.session import engine
-from app.api.v1.routers import (
-    auth,
-    documents,
-    candidates,
-    generations,
-    templates,
-    orgs,
-    jobs,
-    extract,
-    dashboard,
-)
 
 
 @asynccontextmanager
@@ -105,6 +105,7 @@ async def ready() -> dict[str, str]:
     Checks DB connectivity — used by Kubernetes readiness probes.
     """
     from sqlalchemy import text
+
     from app.db.session import get_async_session
 
     async for db in get_async_session():

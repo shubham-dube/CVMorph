@@ -18,7 +18,7 @@ from app.services.extraction.provider import (
     ExtractionError,
     get_provider,
 )
-from app.services.parsing.text_extractor import ParseError, SUPPORTED_SUFFIXES, extract_text
+from app.services.parsing.text_extractor import SUPPORTED_SUFFIXES, ParseError, extract_text
 
 router = APIRouter(prefix="/cv")
 

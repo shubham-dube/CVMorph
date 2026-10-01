@@ -22,7 +22,8 @@ from pydantic import BaseModel
 from sqlalchemy import select
 
 from app.api.v1.deps import CurrentUser, ScopedDB
-from app.models import CandidateProfile as CandidateProfileModel, Document
+from app.models import CandidateProfile as CandidateProfileModel
+from app.models import Document
 
 router = APIRouter(prefix="/jobs")
 

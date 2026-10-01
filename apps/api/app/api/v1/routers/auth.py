@@ -160,8 +160,9 @@ class GoogleAuthRequest(BaseModel):
     ),
 )
 async def google_auth(body: GoogleAuthRequest, db: DBSession) -> TokenResponse:
-    import json
     import base64
+    import json
+
     from app.core.config import settings
     from app.models import Organization, User
 
@@ -173,8 +174,8 @@ async def google_auth(body: GoogleAuthRequest, db: DBSession) -> TokenResponse:
 
     # Try verifying Google OAuth2 / Firebase ID token
     try:
-        from google.oauth2 import id_token as google_id_token
         from google.auth.transport import requests as google_requests
+        from google.oauth2 import id_token as google_id_token
 
         claims = google_id_token.verify_oauth2_token(
             body.id_token,

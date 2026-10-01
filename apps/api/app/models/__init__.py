@@ -16,7 +16,7 @@ Epic ownership:
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import (
     Boolean,
@@ -34,7 +34,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
 def _now() -> datetime:
-    return datetime.now(tz=timezone.utc)
+    return datetime.now(tz=UTC)
 
 
 def _uuid() -> str:
@@ -72,9 +72,9 @@ class Organization(Base):
         DateTime(timezone=True), nullable=False, default=_now, onupdate=_now
     )
 
-    users: Mapped[list["User"]] = relationship("User", back_populates="org")
-    candidates: Mapped[list["Candidate"]] = relationship("Candidate", back_populates="org")
-    templates: Mapped[list["Template"]] = relationship("Template", back_populates="org")
+    users: Mapped[list[User]] = relationship("User", back_populates="org")
+    candidates: Mapped[list[Candidate]] = relationship("Candidate", back_populates="org")
+    templates: Mapped[list[Template]] = relationship("Template", back_populates="org")
 
 
 class User(Base):
@@ -103,7 +103,7 @@ class User(Base):
         DateTime(timezone=True), nullable=False, default=_now
     )
 
-    org: Mapped["Organization"] = relationship("Organization", back_populates="users")
+    org: Mapped[Organization] = relationship("Organization", back_populates="users")
 
     __table_args__ = (UniqueConstraint("org_id", "email", name="uq_users_org_email"),)
 
@@ -133,12 +133,12 @@ class Candidate(Base):
         DateTime(timezone=True), nullable=False, default=_now, onupdate=_now
     )
 
-    org: Mapped["Organization"] = relationship("Organization", back_populates="candidates")
-    documents: Mapped[list["Document"]] = relationship("Document", back_populates="candidate")
-    profiles: Mapped[list["CandidateProfile"]] = relationship(
+    org: Mapped[Organization] = relationship("Organization", back_populates="candidates")
+    documents: Mapped[list[Document]] = relationship("Document", back_populates="candidate")
+    profiles: Mapped[list[CandidateProfile]] = relationship(
         "CandidateProfile", back_populates="candidate"
     )
-    generations: Mapped[list["Generation"]] = relationship(
+    generations: Mapped[list[Generation]] = relationship(
         "Generation", back_populates="candidate"
     )
 
@@ -182,8 +182,8 @@ class Document(Base):
         DateTime(timezone=True), nullable=False, default=_now
     )
 
-    candidate: Mapped["Candidate"] = relationship("Candidate", back_populates="documents")
-    profiles: Mapped[list["CandidateProfile"]] = relationship(
+    candidate: Mapped[Candidate] = relationship("Candidate", back_populates="documents")
+    profiles: Mapped[list[CandidateProfile]] = relationship(
         "CandidateProfile", back_populates="source_document"
     )
 
@@ -245,12 +245,12 @@ class CandidateProfile(Base):
         DateTime(timezone=True), nullable=False, default=_now, onupdate=_now
     )
 
-    candidate: Mapped["Candidate"] = relationship("Candidate", back_populates="profiles")
-    source_document: Mapped["Document"] = relationship("Document", back_populates="profiles")
-    review_events: Mapped[list["ReviewEvent"]] = relationship(
+    candidate: Mapped[Candidate] = relationship("Candidate", back_populates="profiles")
+    source_document: Mapped[Document] = relationship("Document", back_populates="profiles")
+    review_events: Mapped[list[ReviewEvent]] = relationship(
         "ReviewEvent", back_populates="profile"
     )
-    generations: Mapped[list["Generation"]] = relationship(
+    generations: Mapped[list[Generation]] = relationship(
         "Generation", back_populates="profile"
     )
 
@@ -294,8 +294,8 @@ class Template(Base):
         DateTime(timezone=True), nullable=False, default=_now, onupdate=_now
     )
 
-    org: Mapped["Organization"] = relationship("Organization", back_populates="templates")
-    generations: Mapped[list["Generation"]] = relationship(
+    org: Mapped[Organization] = relationship("Organization", back_populates="templates")
+    generations: Mapped[list[Generation]] = relationship(
         "Generation", back_populates="template"
     )
 
@@ -346,9 +346,9 @@ class Generation(Base):
         DateTime(timezone=True), nullable=False, default=_now, onupdate=_now
     )
 
-    candidate: Mapped["Candidate"] = relationship("Candidate", back_populates="generations")
-    template: Mapped["Template"] = relationship("Template", back_populates="generations")
-    profile: Mapped["CandidateProfile"] = relationship(
+    candidate: Mapped[Candidate] = relationship("Candidate", back_populates="generations")
+    template: Mapped[Template] = relationship("Template", back_populates="generations")
+    profile: Mapped[CandidateProfile] = relationship(
         "CandidateProfile", back_populates="generations"
     )
 
@@ -386,7 +386,7 @@ class ReviewEvent(Base):
         DateTime(timezone=True), nullable=False, default=_now
     )
 
-    profile: Mapped["CandidateProfile"] = relationship(
+    profile: Mapped[CandidateProfile] = relationship(
         "CandidateProfile", back_populates="review_events"
     )
 

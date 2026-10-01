@@ -9,10 +9,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import pytest
-
 from app.schemas.candidate_profile import CandidateProfile
-from app.services.extraction.validator import validate, REVIEW_CONFIDENCE_THRESHOLD
+from app.services.extraction.validator import validate
 
 FIXTURES_DIR = Path(__file__).parent.parent / "fixtures" / "profiles"
 

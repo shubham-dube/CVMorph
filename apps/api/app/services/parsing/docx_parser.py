@@ -31,9 +31,8 @@ def extract_text(file_bytes: bytes) -> str:
     """
     try:
         from docx import Document
-        from docx.oxml.ns import qn
-    except ImportError:
-        raise ParseError("python-docx is not installed. Run: pip install python-docx")
+    except ImportError as exc:
+        raise ParseError("python-docx is not installed. Run: pip install python-docx") from exc
 
     try:
         doc = Document(io.BytesIO(file_bytes))
