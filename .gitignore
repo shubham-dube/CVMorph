@@ -64,3 +64,4 @@ apps/api/tests/fixtures/reference_cvs/*.pdf
 
 .vercel
 .env*
+Prompt.md
