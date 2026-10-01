@@ -1,8 +1,13 @@
-export { ConfidenceBadge } from "./ConfidenceBadge";
-export { EvidencePopover } from "./EvidencePopover";
-export { ReviewableBullet } from "./ReviewableBullet";
-export { SkillGroupCard } from "./SkillGroupCard";
-export { EmploymentEntryCard } from "./EmploymentEntryCard";
-export { ApproveBar } from "./ApproveBar";
-export { PreviewPanel } from "./PreviewPanel";
-export { AIAgentDrawer } from "./AIAgentDrawer";
+export {
+  ReviewStudioView,
+  type ReviewStudioViewProps,
+  ConfidenceBadge,
+  EvidencePopover,
+  ReviewableBullet,
+  SkillGroupCard,
+  EmploymentEntryCard,
+  ApproveBar,
+  PreviewPanel,
+  AIAgentDrawer,
+  ChatMessageContent,
+} from "@/features/review";
