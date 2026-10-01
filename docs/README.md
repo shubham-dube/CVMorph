@@ -16,7 +16,17 @@ Located in [`docs/00-handover/`](file:///d:/Projects/Resume_Formatter/docs/00-ha
 
 ---
 
-### 2. Task 1 System Audit & Findings
+### 2. Target Architecture & Engineering Standards
+Located in [`docs/architecture/`](file:///d:/Projects/Resume_Formatter/docs/architecture/):
+- **[`overview.md`](file:///d:/Projects/Resume_Formatter/docs/architecture/overview.md)** — High-level architecture, mission, core principles, layered architecture, multi-tenancy, and AI copilot boundaries.
+- **[`folder-structure.md`](file:///d:/Projects/Resume_Formatter/docs/architecture/folder-structure.md)** — Monorepo directory map, backend/frontend layout, and strict naming conventions.
+- **[`coding-standards.md`](file:///d:/Projects/Resume_Formatter/docs/architecture/coding-standards.md)** — Universal limits, Python/FastAPI conventions, TypeScript/Next.js conventions, structured logging, and error envelopes.
+- **[`module-template.md`](file:///d:/Projects/Resume_Formatter/docs/architecture/module-template.md)** — End-to-end recipe for adding backend domains (Router -> Service -> Repository) and frontend features (`features/<feature>/`).
+- **[`database-conventions.md`](file:///d:/Projects/Resume_Formatter/docs/architecture/database-conventions.md)** — UUIDs, multi-tenant isolation, soft deletes, PostgreSQL JSONB, indexing, and Alembic workflow.
+
+---
+
+### 3. Task 1 System Audit & Findings
 Located in [`docs/audit/`](file:///d:/Projects/Resume_Formatter/docs/audit/):
 - **[`01-system-audit.md`](file:///d:/Projects/Resume_Formatter/docs/audit/01-system-audit.md)** — Comprehensive end-to-end audit report: Executive Summary, complete tech stack audit (dependencies, vulnerabilities, versions), architecture mapping, failure modes, roadmap critique, and target architecture recommendation.
 - **[`01-findings-register.md`](file:///d:/Projects/Resume_Formatter/docs/audit/01-findings-register.md)** — Granular findings register (AUD-001 through AUD-035+), categorizing severity (Critical, High, Medium, Low), exact code evidence (`file:line`), impact, recommended remediation, and target task (Tasks 2–15). Also inventories positive patterns to preserve.
@@ -25,7 +35,7 @@ Located in [`docs/audit/`](file:///d:/Projects/Resume_Formatter/docs/audit/):
 
 ---
 
-### 3. Current State Technical Reference (What IS, Not What Should Be)
+### 4. Current State Technical Reference (What IS, Not What Should Be)
 Located in [`docs/current-state/`](file:///d:/Projects/Resume_Formatter/docs/current-state/):
 - **[`architecture.md`](file:///d:/Projects/Resume_Formatter/docs/current-state/architecture.md)** — Detailed runtime topology, inter-component communications, containerization, hosting infrastructure, and Mermaid data flow diagrams.
 - **[`database.md`](file:///d:/Projects/Resume_Formatter/docs/current-state/database.md)** — PostgreSQL relational schema, tables, column types, foreign keys, Alembic migrations (001–005), Row-Level Security (RLS) policies, and Mermaid ER diagram.
@@ -36,7 +46,7 @@ Located in [`docs/current-state/`](file:///d:/Projects/Resume_Formatter/docs/cur
 
 ---
 
-### 4. Legacy Product Specifications & References
+### 5. Legacy Product Specifications & References
 - **[`PRD.md`](file:///d:/Projects/Resume_Formatter/docs/PRD.md)** — Original hackathon Product Requirements Document.
 - **[`api-reference.md`](file:///d:/Projects/Resume_Formatter/docs/api-reference.md)** — Hackathon-era API endpoint specification.
 - **[`cv_schema_template_mapping.md`](file:///d:/Projects/Resume_Formatter/docs/cv_schema_template_mapping.md)** — Canonical JSON schema to docxtpl template field mappings.
